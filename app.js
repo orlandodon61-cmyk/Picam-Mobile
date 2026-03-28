@@ -52,7 +52,7 @@ const APP = {
 // GOOGLE OAUTH
 // ==========================================
 
-const GOOGLE_CLIENT_ID = '531186661114-h0t8okuq99ft6j889lq1b6skgo2pl074.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '780777046643-ebl7m87qcoldp3c8sg9c1u5dfqjdgl42.apps.googleusercontent.com';
 const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive';
 
 APP.login = function() {
