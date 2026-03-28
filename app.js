@@ -932,7 +932,8 @@ APP.numpadConfirm = function() {
         return;
     }
     
-    APP.closeQtyModal();
+    // PRIMA processo l'articolo, POI chiudo il modal
+    document.getElementById('modal-qty').classList.add('hidden');
     APP.processArticoloWithQty(qty);
 };
 
