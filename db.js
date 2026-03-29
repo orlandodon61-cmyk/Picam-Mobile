@@ -169,10 +169,11 @@ function searchArticoli(query, limit = 50) {
             if (cursor && results.length < limit) {
                 const art = cursor.value;
                 
-                // Ricerca su codice, barcode, descrizione
+                // Ricerca su codice, barcode, descrizione1, descrizione2
                 if (art.codice.toLowerCase().includes(queryLower) ||
                     (art.barcode && art.barcode.includes(query)) ||
-                    art.des1.toLowerCase().includes(queryLower)) {
+                    art.des1.toLowerCase().includes(queryLower) ||
+                    (art.des2 && art.des2.toLowerCase().includes(queryLower))) {
                     results.push(art);
                 }
                 

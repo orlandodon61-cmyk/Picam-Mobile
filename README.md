@@ -1,7 +1,7 @@
-# 📦 PICAM PWA v3.2
+# 📦 PICAM PWA v3.3
 
-**Versione:** 3.2  
-**Cache:** v22  
+**Versione:** 3.3  
+**Cache:** v23  
 **Data:** 29 Marzo 2026  
 
 ---
@@ -9,7 +9,7 @@
 ## 🚀 Funzionalità
 
 ### Inventario
-- Ricerca articoli per codice, descrizione o barcode
+- Ricerca articoli per codice, descrizione1, descrizione2 o barcode
 - Scanner barcode integrato (fotocamera)
 - Modalità rapida (aggiunge automaticamente con qta 1)
 - Modifica quantità dalla coda
@@ -18,6 +18,7 @@
 
 ### Ordini Clienti
 - Selezione cliente da anagrafica
+- Ricerca articoli su codice, des1, des2, barcode
 - Prezzo ultimo vendita proposto automaticamente
 - Visualizzazione giacenza articoli
 - Modifica righe dalla coda
@@ -25,7 +26,9 @@
 
 ### Ordini Fornitori
 - Selezione fornitore da anagrafica
-- Prezzo ultimo acquisto proposto automaticamente
+- Ricerca articoli su codice, des1, des2, barcode
+- Prezzo ultimo acquisto proposto (modificabile)
+- **Inserimento prezzo manuale** se non presente
 - IVA automatica da anagrafica articoli
 - **Stampa ordine professionale** (layout Picam):
   - Logo aziendale in alto a sinistra
@@ -37,15 +40,21 @@
 
 ---
 
-## 🆕 Novità v3.2
+## 🆕 Novità v3.3
 
-1. **Login automatico** - L'app ricorda l'account e tenta l'accesso automatico
-2. **Impostazioni salvate** - Cartella Drive e deposito memorizzati
-3. **Modifica dalla coda** - Tocca un elemento per modificare quantità
-4. **Elimina singoli elementi** - Non serve più svuotare tutta la coda
-5. **Avviso sincronizzazione** - Indica se l'elemento è già stato sincronizzato
-6. **Ordine professionale** - Layout identico al gestionale Picam
-7. **Logo automatico** - Cerca logo.jpg/png nella cartella o nella root di Drive
+1. **Ricerca su descrizione** - Cerca anche su des1 e des2
+2. **Salta caricamento** - Usa dati già caricati senza ricaricare
+3. **Prezzo modificabile** - Inserisci prezzo acquisto al volo
+4. **PDF migliorato** - Rimossi campi inutili, colonne sistemate
+
+### Già presenti da v3.2
+- Login automatico (ricorda account)
+- Impostazioni salvate (cartella Drive, deposito)
+- Modifica dalla coda (tocca per modificare)
+- Elimina singoli elementi
+- Avviso se già sincronizzato
+- Ordine professionale layout Picam
+- Logo automatico da Google Drive
 
 ---
 
@@ -53,11 +62,11 @@
 
 ```
 Picam-Mobile/
-├── index.html      # Struttura HTML (v22)
-├── styles.css      # Stili CSS (v22)
-├── app.js          # Logica applicativa (v22)
-├── db.js           # Database IndexedDB (v22)
-├── sw.js           # Service Worker (cache-v22)
+├── index.html      # Struttura HTML (v23)
+├── styles.css      # Stili CSS (v23)
+├── app.js          # Logica applicativa (v23)
+├── db.js           # Database IndexedDB (v23)
+├── sw.js           # Service Worker (cache-v23)
 ├── manifest.json   # Manifest PWA
 ├── icon-192.png    # Icona 192x192
 ├── icon-512.png    # Icona 512x512
@@ -132,4 +141,4 @@ Repository: https://github.com/orlandodon61-cmyk/Picam-Mobile
 
 ---
 
-© 2026 Techmatesrls - Picam PWA v3.2
+© 2026 Techmatesrls - Picam PWA v3.3

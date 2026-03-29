@@ -161,6 +161,19 @@ APP.getUserInfo = async function() {
         document.getElementById('config-folder').value = APP.config.folder;
         document.getElementById('config-deposito').value = APP.config.deposito;
         
+        // Verifica se ci sono dati esistenti e mostra pulsante "Salta"
+        try {
+            await DB.init();
+            const stats = await DB.getStats();
+            if (stats.articoli > 0) {
+                document.getElementById('btn-skip-load').classList.remove('hidden');
+                document.getElementById('load-status').textContent = `${stats.articoli} articoli già caricati`;
+                document.getElementById('load-status').className = 'status-message success';
+            }
+        } catch (e) {
+            console.log('DB non inizializzato, skip non disponibile');
+        }
+        
     } catch (error) {
         console.error('Errore getUserInfo:', error);
         document.getElementById('login-status').className = 'status-message error';
@@ -327,6 +340,25 @@ APP.loadAllData = async function() {
         statusEl.textContent = 'Errore: ' + error.message;
         btnLoad.disabled = false;
     }
+};
+
+// Salta caricamento e usa dati esistenti
+APP.skipLoadData = async function() {
+    const conferma = confirm('Usare i dati già caricati?\n\nLe anagrafiche potrebbero non essere aggiornate.');
+    
+    if (!conferma) return;
+    
+    // Salva configurazione corrente
+    APP.config.folder = document.getElementById('config-folder').value || 'archivi/Ordini';
+    APP.config.deposito = document.getElementById('config-deposito').value || '01';
+    localStorage.setItem('picam_config', JSON.stringify(APP.config));
+    
+    // Vai direttamente al menu
+    await APP.loadSavedQueues();
+    APP.showScreen('menu');
+    APP.updateMenuStats();
+    APP.updateBadges();
+    APP.showToast('Dati esistenti caricati', 'success');
 };
 
 APP.findFolder = async function(folderPath) {
@@ -926,7 +958,7 @@ APP.selectArticolo = async function(codice, context) {
     APP.handleSelectArticolo(articolo, context);
 };
 
-APP.processArticoloWithQty = async function(qty) {
+APP.processArticoloWithQty = async function(qty, prezzoInserito = null) {
     const articolo = APP.selectedArticolo;
     const context = APP.qtyContext;
     
@@ -941,7 +973,7 @@ APP.processArticoloWithQty = async function(qty) {
             APP.addRigaOrdineCliente(articolo, qty);
             break;
         case 'artOrdFor':
-            APP.addRigaOrdineFornitore(articolo, qty);
+            APP.addRigaOrdineFornitore(articolo, qty, prezzoInserito);
             break;
     }
     
@@ -965,6 +997,20 @@ APP.openQtyModal = function() {
     document.getElementById('qty-articolo-desc').textContent = articolo.des1;
     document.getElementById('qty-articolo-code').textContent = articolo.codice;
     document.getElementById('numpad-value').textContent = '1';
+    
+    // Mostra campo prezzo solo per ordini fornitori
+    const prezzoContainer = document.getElementById('qty-prezzo-container');
+    const prezzoInput = document.getElementById('qty-prezzo-input');
+    
+    if (APP.currentContext === 'ordiniFornitori') {
+        prezzoContainer.classList.remove('hidden');
+        // Pre-compila con prezzo acquisto se disponibile
+        const prezzoDefault = articolo.prezzoAcquisto || 0;
+        prezzoInput.value = prezzoDefault > 0 ? prezzoDefault.toFixed(2) : '';
+    } else {
+        prezzoContainer.classList.add('hidden');
+        prezzoInput.value = '';
+    }
     
     document.getElementById('modal-qty').classList.remove('hidden');
 };
@@ -1014,9 +1060,18 @@ APP.numpadConfirm = function() {
         return;
     }
     
+    // Prendi prezzo inserito (solo per ordini fornitori)
+    let prezzoInserito = null;
+    if (APP.currentContext === 'ordiniFornitori') {
+        const prezzoInput = document.getElementById('qty-prezzo-input');
+        if (prezzoInput.value) {
+            prezzoInserito = parseFloat(prezzoInput.value) || 0;
+        }
+    }
+    
     // PRIMA processo l'articolo, POI chiudo il modal
     document.getElementById('modal-qty').classList.add('hidden');
-    APP.processArticoloWithQty(qty);
+    APP.processArticoloWithQty(qty, prezzoInserito);
 };
 
 // ==========================================
@@ -1367,18 +1422,25 @@ APP.updateBtnConfermaOrdCli = function() {
 // RIGHE ORDINE FORNITORI
 // ==========================================
 
-APP.addRigaOrdineFornitore = function(articolo, qty) {
+APP.addRigaOrdineFornitore = function(articolo, qty, prezzoInserito = null) {
+    // Usa prezzo inserito se fornito, altrimenti prezzo acquisto o 0
+    const prezzo = prezzoInserito !== null ? prezzoInserito : (articolo.prezzoAcquisto || articolo.prezzo || 0);
+    
     const existing = APP.currentOrdineFornitori.righe.find(r => r.codice === articolo.codice);
     
     if (existing) {
         existing.qty += qty;
+        // Aggiorna anche il prezzo se è stato inserito uno nuovo
+        if (prezzoInserito !== null) {
+            existing.prezzo = prezzoInserito;
+        }
     } else {
         APP.currentOrdineFornitori.righe.push({
             codice: articolo.codice,
             des1: articolo.des1,
             des2: articolo.des2,
             um: articolo.um,
-            prezzo: articolo.prezzoAcquisto || articolo.prezzo || 0,
+            prezzo: prezzo,
             aliquotaIva: articolo.aliquotaIva || 22,
             giacenza: articolo.giacenza || 0,
             qty: qty
@@ -2409,14 +2471,12 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     doc.setFontSize(6);
     doc.setFont(undefined, 'bold');
     doc.text('COD.ARTICOLO', 12, y + 5);
-    doc.text('DESCRIZIONE', 45, y + 5);
-    doc.text('COD. ART. FORNIT.', 95, y + 5);
-    doc.text("QUANTITA'", 120, y + 5);
-    doc.text('U.M.', 138, y + 5);
+    doc.text('DESCRIZIONE', 50, y + 5);
+    doc.text("QUANTITA'", 115, y + 5);
+    doc.text('U.M.', 133, y + 5);
     
     if (showPrices) {
-        doc.text('PREZZO UNITARIO', 150, y + 5);
-        doc.text('SCONTI/AUMENTI', 175, y + 5);
+        doc.text('PREZZO UNITARIO', 148, y + 5);
     }
     doc.text('DATA CONS', 192, y + 5, { align: 'right' });
     
@@ -2439,18 +2499,16 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
         
         doc.setDrawColor(0);
         doc.text(riga.codice.substring(0, 18), 12, y + 4);
-        doc.text(riga.des1.substring(0, 28), 45, y + 4);
-        doc.text('', 95, y + 4); // Cod. art. fornitore
+        doc.text(riga.des1.substring(0, 35), 50, y + 4);
         
         // Quantità con formato x,xxx
         const qtyFormatted = riga.qty.toFixed(3).replace('.', ',');
-        doc.text(qtyFormatted, 120, y + 4);
-        doc.text(riga.um || 'Nr.', 138, y + 4);
+        doc.text(qtyFormatted, 115, y + 4);
+        doc.text(riga.um || 'Nr.', 133, y + 4);
         
         if (showPrices) {
             const prezzoFormatted = riga.prezzo.toFixed(6).replace('.', ',');
-            doc.text(prezzoFormatted, 150, y + 4);
-            doc.text('', 175, y + 4); // Sconti
+            doc.text(prezzoFormatted, 148, y + 4);
             totaleMerce += riga.qty * riga.prezzo;
         }
         
@@ -2665,7 +2723,7 @@ APP.vibrate = function(duration = 50) {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('Picam v3.2 - Inizializzazione...');
+    console.log('Picam v3.3 - Inizializzazione...');
     
     // Carica configurazione salvata
     const savedConfig = localStorage.getItem('picam_config');
