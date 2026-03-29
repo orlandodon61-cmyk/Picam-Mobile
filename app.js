@@ -49,20 +49,75 @@ const APP = {
 };
 
 // ==========================================
-// GOOGLE OAUTH
+// GOOGLE OAUTH CON LOGIN AUTOMATICO
 // ==========================================
 
 const GOOGLE_CLIENT_ID = '780777046643-ebl7m87qcoldp3c8sg9c1u5dfqjdgl42.apps.googleusercontent.com';
 const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive';
 
+// Tenta login automatico silenzioso
+APP.tryAutoLogin = function() {
+    return new Promise((resolve) => {
+        const savedEmail = localStorage.getItem('picam_user_email');
+        
+        if (!savedEmail) {
+            resolve(false);
+            return;
+        }
+        
+        console.log('Tentativo login automatico per:', savedEmail);
+        
+        const client = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: GOOGLE_SCOPES,
+            hint: savedEmail,
+            prompt: '', // Login silenzioso se già autorizzato
+            callback: (response) => {
+                if (response.access_token) {
+                    APP.accessToken = response.access_token;
+                    APP.tokenExpiry = Date.now() + (response.expires_in * 1000);
+                    APP.userEmail = savedEmail;
+                    
+                    localStorage.setItem('picam_access_token', APP.accessToken);
+                    localStorage.setItem('picam_token_expiry', APP.tokenExpiry.toString());
+                    
+                    console.log('Login automatico riuscito!');
+                    resolve(true);
+                } else {
+                    console.log('Login automatico fallito, richiesto login manuale');
+                    resolve(false);
+                }
+            },
+            error_callback: (error) => {
+                console.log('Login automatico non disponibile:', error);
+                resolve(false);
+            }
+        });
+        
+        // Timeout per evitare blocchi
+        setTimeout(() => resolve(false), 5000);
+        
+        try {
+            client.requestAccessToken({ prompt: '' });
+        } catch (e) {
+            console.log('Errore login automatico:', e);
+            resolve(false);
+        }
+    });
+};
+
+// Login manuale (con popup)
 APP.login = function() {
     const statusEl = document.getElementById('login-status');
     statusEl.className = 'status-message loading';
     statusEl.textContent = 'Connessione in corso...';
     
+    const savedEmail = localStorage.getItem('picam_user_email');
+    
     const client = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: GOOGLE_SCOPES,
+        hint: savedEmail || '', // Pre-seleziona account se salvato
         callback: (response) => {
             if (response.access_token) {
                 APP.accessToken = response.access_token;
@@ -70,7 +125,7 @@ APP.login = function() {
                 
                 // Salva in localStorage
                 localStorage.setItem('picam_access_token', APP.accessToken);
-                localStorage.setItem('picam_token_expiry', APP.tokenExpiry);
+                localStorage.setItem('picam_token_expiry', APP.tokenExpiry.toString());
                 
                 // Ottieni info utente
                 APP.getUserInfo();
@@ -102,6 +157,10 @@ APP.getUserInfo = async function() {
         document.getElementById('step-config').classList.remove('disabled');
         document.getElementById('step-load').classList.remove('disabled');
         
+        // Pre-compila configurazione salvata
+        document.getElementById('config-folder').value = APP.config.folder;
+        document.getElementById('config-deposito').value = APP.config.deposito;
+        
     } catch (error) {
         console.error('Errore getUserInfo:', error);
         document.getElementById('login-status').className = 'status-message error';
@@ -123,16 +182,35 @@ APP.checkAuth = function() {
     return false;
 };
 
+// Verifica se token sta per scadere (meno di 5 minuti)
+APP.isTokenExpiring = function() {
+    if (!APP.tokenExpiry) return true;
+    return (APP.tokenExpiry - Date.now()) < 300000; // 5 minuti
+};
+
+// Rinnova token se necessario prima di operazioni critiche
+APP.ensureValidToken = async function() {
+    if (APP.isTokenExpiring()) {
+        console.log('Token in scadenza, rinnovo...');
+        const success = await APP.tryAutoLogin();
+        if (!success) {
+            APP.showToast('Sessione scaduta, effettua nuovamente il login', 'error');
+            APP.showScreen('setup');
+            return false;
+        }
+    }
+    return true;
+};
+
 APP.logout = function() {
     if (!confirm('Vuoi disconnetterti?')) return;
     
     localStorage.removeItem('picam_access_token');
     localStorage.removeItem('picam_token_expiry');
-    localStorage.removeItem('picam_user_email');
+    // NON rimuoviamo email e config per il prossimo login
     
     APP.accessToken = null;
     APP.tokenExpiry = null;
-    APP.userEmail = null;
     
     APP.showScreen('setup');
     APP.closeSettings();
@@ -337,6 +415,8 @@ APP.mergeArticoli = function(articoli, codbar, artdep) {
         const prezzo = parseFloat(art.art_pre_ven || art.ART_PRE_VEN || 0) || 0;
         const prezzoVendita = parseFloat(art.art_prz_ult_ven || art.ART_PRZ_ULT_VEN || 0) || 0;
         const prezzoAcquisto = parseFloat(art.art_prz_ult_acq || art.ART_PRZ_ULT_ACQ || 0) || 0;
+        const codIva = (art.art_cod_iva || art.ART_COD_IVA || '22').toString().trim();
+        const aliquotaIva = parseFloat(codIva) || 22;
         
         const barcode = codbarMap.get(codice) || '';
         const depInfo = artdepMap.get(codice) || { giacenza: 0, locazione: '' };
@@ -350,6 +430,8 @@ APP.mergeArticoli = function(articoli, codbar, artdep) {
             prezzo,
             prezzoVendita,
             prezzoAcquisto,
+            codIva,
+            aliquotaIva,
             barcode,
             giacenza: depInfo.giacenza,
             locazione: depInfo.locazione
@@ -1218,6 +1300,7 @@ APP.addRigaOrdineCliente = function(articolo, qty) {
             des2: articolo.des2,
             um: articolo.um,
             prezzo: articolo.prezzoVendita || articolo.prezzo || 0,
+            aliquotaIva: articolo.aliquotaIva || 22,
             giacenza: articolo.giacenza || 0,
             qty: qty
         });
@@ -1296,6 +1379,7 @@ APP.addRigaOrdineFornitore = function(articolo, qty) {
             des2: articolo.des2,
             um: articolo.um,
             prezzo: articolo.prezzoAcquisto || articolo.prezzo || 0,
+            aliquotaIva: articolo.aliquotaIva || 22,
             giacenza: articolo.giacenza || 0,
             qty: qty
         });
@@ -1448,6 +1532,8 @@ APP.confermaOrdineFornitore = async function() {
 // MODAL CODA
 // ==========================================
 
+APP.queueData = []; // Cache della coda corrente
+
 APP.openQueueModal = async function(context) {
     APP.queueContext = context;
     
@@ -1457,7 +1543,6 @@ APP.openQueueModal = async function(context) {
     const listEl = document.getElementById('queue-list');
     const actionsEl = document.getElementById('queue-actions');
     
-    let queue = [];
     let storeName = '';
     
     switch (context) {
@@ -1475,35 +1560,38 @@ APP.openQueueModal = async function(context) {
             break;
     }
     
-    queue = await DB.getQueue(storeName);
-    countEl.textContent = `${queue.length} elementi`;
+    APP.queueData = await DB.getQueue(storeName);
+    countEl.textContent = `${APP.queueData.length} elementi`;
     
-    // Render lista
-    if (queue.length === 0) {
+    // Render lista con selezione
+    if (APP.queueData.length === 0) {
         listEl.innerHTML = '<div class="empty-message">Nessun elemento in coda</div>';
     } else if (context === 'inventario') {
-        listEl.innerHTML = queue.map(item => `
-            <div class="queue-item">
+        listEl.innerHTML = APP.queueData.map((item, index) => `
+            <div class="queue-item selectable" onclick="APP.selectQueueItem(${index})">
                 <div class="queue-item-info">
                     <div class="queue-item-code">${item.codice}</div>
+                    <div class="queue-item-desc">${item.des1 || ''}</div>
                     <div class="queue-item-loc">📍 ${item.locazione || '-'}</div>
                 </div>
                 <div class="queue-item-qty">${item.qty}</div>
+                <div class="queue-item-status">${item.synced ? '✓' : ''}</div>
             </div>
         `).join('');
     } else {
         // Ordini
-        listEl.innerHTML = queue.map(ord => `
-            <div class="ordine-item">
+        listEl.innerHTML = APP.queueData.map((ord, index) => `
+            <div class="ordine-item selectable" onclick="APP.selectQueueItem(${index})">
                 <div class="ordine-header">
                     <span class="ordine-num">${ord.registro}/${ord.numero}</span>
                     <span class="ordine-data">${APP.formatDate(new Date(ord.data))}</span>
+                    <span class="ordine-status ${ord.synced ? 'synced' : ''}">${ord.synced ? '✓ Sync' : '○'}</span>
                 </div>
                 <div class="ordine-body">
-                    <span class="ordine-${context === 'ordiniClienti' ? 'cliente' : 'fornitore'}">
+                    <span class="ordine-soggetto">
                         ${context === 'ordiniClienti' ? ord.cliente.ragSoc1 : ord.fornitore.ragSoc1}
                     </span>
-                    <span class="ordine-righe">${ord.righe.length} articoli</span>
+                    <span class="ordine-righe">${ord.righe.length} art. - € ${ord.righe.reduce((s, r) => s + r.qty * r.prezzo, 0).toFixed(2)}</span>
                 </div>
             </div>
         `).join('');
@@ -1522,6 +1610,7 @@ APP.openQueueModal = async function(context) {
                 🗑️ Svuota
             </button>
         </div>
+        <p class="queue-hint">Tocca un elemento per modificare/stampare</p>
     `;
     
     modal.classList.remove('hidden');
@@ -1530,6 +1619,214 @@ APP.openQueueModal = async function(context) {
 APP.closeQueueModal = function() {
     document.getElementById('modal-queue').classList.add('hidden');
     APP.queueContext = null;
+    APP.queueData = [];
+};
+
+// Seleziona elemento dalla coda
+APP.selectQueueItem = function(index) {
+    const item = APP.queueData[index];
+    if (!item) return;
+    
+    APP.selectedQueueIndex = index;
+    APP.selectedQueueItem = item;
+    
+    // Apri modal dettaglio/modifica
+    APP.openItemDetailModal();
+};
+
+// Modal dettaglio elemento
+APP.openItemDetailModal = function() {
+    const item = APP.selectedQueueItem;
+    const context = APP.queueContext;
+    
+    const modal = document.getElementById('modal-item-detail');
+    const titleEl = document.getElementById('item-detail-title');
+    const contentEl = document.getElementById('item-detail-content');
+    const actionsEl = document.getElementById('item-detail-actions');
+    
+    if (context === 'inventario') {
+        titleEl.textContent = '📦 Dettaglio Articolo';
+        contentEl.innerHTML = `
+            <div class="detail-row">
+                <label>Codice:</label>
+                <span>${item.codice}</span>
+            </div>
+            <div class="detail-row">
+                <label>Descrizione:</label>
+                <span>${item.des1 || '-'}</span>
+            </div>
+            <div class="detail-row">
+                <label>Locazione:</label>
+                <span>${item.locazione || '-'}</span>
+            </div>
+            <div class="detail-row editable">
+                <label>Quantità:</label>
+                <input type="number" id="edit-qty" value="${item.qty}" min="1">
+            </div>
+            ${item.synced ? '<div class="sync-warning">⚠️ Già sincronizzato su Google Drive</div>' : ''}
+        `;
+        actionsEl.innerHTML = `
+            <button class="btn-primary" onclick="APP.saveItemEdit()">💾 Salva</button>
+            <button class="btn-danger" onclick="APP.deleteQueueItem()">🗑️ Elimina</button>
+            <button class="btn-secondary" onclick="APP.closeItemDetailModal()">Chiudi</button>
+        `;
+    } else {
+        // Ordine
+        const soggetto = context === 'ordiniClienti' ? item.cliente : item.fornitore;
+        const tipo = context === 'ordiniClienti' ? 'Cliente' : 'Fornitore';
+        
+        let totale = 0;
+        let righeHtml = item.righe.map((riga, idx) => {
+            const tot = riga.qty * riga.prezzo;
+            totale += tot;
+            return `
+                <div class="riga-detail">
+                    <span class="riga-cod">${riga.codice}</span>
+                    <span class="riga-desc">${riga.des1.substring(0, 25)}</span>
+                    <input type="number" class="riga-qty-edit" data-idx="${idx}" value="${riga.qty}" min="1" style="width:50px">
+                    <span class="riga-tot">€ ${tot.toFixed(2)}</span>
+                </div>
+            `;
+        }).join('');
+        
+        titleEl.textContent = `📋 Ordine ${item.registro}/${item.numero}`;
+        contentEl.innerHTML = `
+            <div class="detail-row">
+                <label>${tipo}:</label>
+                <span>${soggetto.ragSoc1}</span>
+            </div>
+            <div class="detail-row">
+                <label>Data:</label>
+                <span>${APP.formatDate(new Date(item.data))}</span>
+            </div>
+            <div class="detail-row">
+                <label>Totale:</label>
+                <span id="order-total">€ ${totale.toFixed(2)}</span>
+            </div>
+            ${item.synced ? '<div class="sync-warning">⚠️ Già sincronizzato su Google Drive</div>' : ''}
+            <h4>Righe ordine:</h4>
+            <div class="righe-list">${righeHtml}</div>
+        `;
+        
+        let actionsHtml = `
+            <button class="btn-primary" onclick="APP.saveItemEdit()">💾 Salva</button>
+        `;
+        
+        // Azioni specifiche per ordini fornitori
+        if (context === 'ordiniFornitori') {
+            actionsHtml += `
+                <button class="btn-secondary" onclick="APP.printOrdineFornitore(true)">🖨️ Stampa con prezzi</button>
+                <button class="btn-secondary" onclick="APP.printOrdineFornitore(false)">🖨️ Stampa senza prezzi</button>
+                <button class="btn-secondary" onclick="APP.shareOrdineFornitore()">📤 Condividi</button>
+            `;
+        }
+        
+        actionsHtml += `
+            <button class="btn-danger" onclick="APP.deleteQueueItem()">🗑️ Elimina</button>
+            <button class="btn-secondary" onclick="APP.closeItemDetailModal()">Chiudi</button>
+        `;
+        
+        actionsEl.innerHTML = actionsHtml;
+    }
+    
+    modal.classList.remove('hidden');
+};
+
+APP.closeItemDetailModal = function() {
+    document.getElementById('modal-item-detail').classList.add('hidden');
+    APP.selectedQueueIndex = null;
+    APP.selectedQueueItem = null;
+};
+
+// Salva modifiche elemento
+APP.saveItemEdit = async function() {
+    const context = APP.queueContext;
+    const index = APP.selectedQueueIndex;
+    const item = APP.selectedQueueItem;
+    
+    let storeName = '';
+    switch (context) {
+        case 'inventario':
+            storeName = 'queueInventario';
+            const newQty = parseInt(document.getElementById('edit-qty').value) || 1;
+            item.qty = newQty;
+            break;
+        case 'ordiniClienti':
+            storeName = 'queueOrdiniClienti';
+            // Aggiorna quantità righe
+            document.querySelectorAll('.riga-qty-edit').forEach(input => {
+                const idx = parseInt(input.dataset.idx);
+                item.righe[idx].qty = parseInt(input.value) || 1;
+            });
+            break;
+        case 'ordiniFornitori':
+            storeName = 'queueOrdiniFornitori';
+            document.querySelectorAll('.riga-qty-edit').forEach(input => {
+                const idx = parseInt(input.dataset.idx);
+                item.righe[idx].qty = parseInt(input.value) || 1;
+            });
+            break;
+    }
+    
+    // Aggiorna nel DB
+    await DB.updateQueueItem(storeName, item);
+    
+    APP.showToast('Modifiche salvate', 'success');
+    APP.closeItemDetailModal();
+    
+    // Ricarica lista
+    APP.openQueueModal(context);
+};
+
+// Elimina elemento dalla coda
+APP.deleteQueueItem = async function() {
+    if (!confirm('Vuoi eliminare questo elemento?')) return;
+    
+    const context = APP.queueContext;
+    const item = APP.selectedQueueItem;
+    
+    let storeName = '';
+    switch (context) {
+        case 'inventario':
+            storeName = 'queueInventario';
+            break;
+        case 'ordiniClienti':
+            storeName = 'queueOrdiniClienti';
+            break;
+        case 'ordiniFornitori':
+            storeName = 'queueOrdiniFornitori';
+            break;
+    }
+    
+    await DB.deleteFromQueue(storeName, item.id || item.timestamp);
+    
+    APP.showToast('Elemento eliminato', 'success');
+    APP.closeItemDetailModal();
+    APP.updateBadges();
+    
+    // Ricarica o chiudi se vuota
+    const queue = await DB.getQueue(storeName);
+    if (queue.length === 0) {
+        APP.closeQueueModal();
+    } else {
+        APP.openQueueModal(context);
+    }
+};
+
+// Stampa ordine fornitore
+APP.printOrdineFornitore = async function(showPrices) {
+    const ordine = APP.selectedQueueItem;
+    const doc = await APP.generateOrdineProfessionale(ordine, showPrices);
+    const fileName = `Ordine_${ordine.registro}_${ordine.numero}_${APP.formatDateFile(new Date())}.pdf`;
+    APP.downloadPDF(doc, fileName);
+};
+
+// Condividi ordine fornitore
+APP.shareOrdineFornitore = async function() {
+    const ordine = APP.selectedQueueItem;
+    const doc = await APP.generateOrdineProfessionale(ordine, true);
+    const fileName = `Ordine_${ordine.registro}_${ordine.numero}.pdf`;
+    await APP.shareDocument(doc, fileName, `Ordine ${ordine.registro}/${ordine.numero}`);
 };
 
 APP.clearQueue = async function(context) {
@@ -1802,114 +2099,394 @@ APP.uploadFile = async function(folderId, fileName, data, mimeType) {
 // REPORT PDF
 // ==========================================
 
-APP.generateReport = async function(context) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    let queue = [];
-    let title = '';
-    
-    switch (context) {
-        case 'inventario':
-            queue = await DB.getQueue('queueInventario');
-            title = 'Report Inventario';
-            break;
-        case 'ordiniClienti':
-            queue = await DB.getQueue('queueOrdiniClienti');
-            title = 'Report Ordini Clienti';
-            break;
-        case 'ordiniFornitori':
-            queue = await DB.getQueue('queueOrdiniFornitori');
-            title = 'Report Ordini Fornitori';
-            break;
+// Cache del logo
+APP.logoBase64 = null;
+
+// Carica logo da Google Drive
+APP.loadLogo = async function() {
+    try {
+        const folderId = await APP.findFolder(APP.config.folder);
+        if (!folderId) return null;
+        
+        const query = `name='logo.jpg' and '${folderId}' in parents and trashed=false`;
+        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`;
+        
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${APP.accessToken}` }
+        });
+        const data = await response.json();
+        
+        if (!data.files || data.files.length === 0) return null;
+        
+        const fileId = data.files[0].id;
+        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        
+        const fileResponse = await fetch(downloadUrl, {
+            headers: { 'Authorization': `Bearer ${APP.accessToken}` }
+        });
+        
+        const blob = await fileResponse.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.error('Errore caricamento logo:', e);
+        return null;
     }
+};
+
+// Genera Report Inventario avanzato
+APP.generateReportInventario = async function() {
+    const queue = await DB.getQueue('queueInventario');
     
     if (queue.length === 0) {
         APP.showToast('Nessun elemento da esportare', 'error');
         return;
     }
     
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
     // Intestazione
     doc.setFontSize(18);
-    doc.text(title, 105, 15, { align: 'center' });
+    doc.text('Report Inventario', 105, 15, { align: 'center' });
     doc.setFontSize(10);
     doc.text(`Generato il ${APP.formatDate(new Date())} alle ${new Date().toLocaleTimeString('it-IT')}`, 105, 22, { align: 'center' });
+    doc.text(`Deposito: ${APP.config.deposito}`, 105, 28, { align: 'center' });
+    
+    // Header tabella
+    let y = 40;
+    doc.setFillColor(55, 71, 79);
+    doc.rect(10, y - 5, 190, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.text('Codice', 12, y);
+    doc.text('Descrizione 1', 45, y);
+    doc.text('Descrizione 2', 110, y);
+    doc.text('Loc.', 165, y);
+    doc.text('Qta', 185, y);
+    
+    y += 8;
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, 'normal');
+    
+    let totQta = 0;
+    queue.forEach((item, index) => {
+        if (y > 280) {
+            doc.addPage();
+            y = 20;
+        }
+        
+        // Riga alternata
+        if (index % 2 === 0) {
+            doc.setFillColor(245, 245, 245);
+            doc.rect(10, y - 4, 190, 6, 'F');
+        }
+        
+        doc.setFontSize(8);
+        doc.text(item.codice.substring(0, 20), 12, y);
+        doc.text((item.des1 || '').substring(0, 35), 45, y);
+        doc.text((item.des2 || '').substring(0, 30), 110, y);
+        doc.text(item.locazione || '-', 165, y);
+        doc.text(item.qty.toString(), 185, y);
+        
+        totQta += item.qty;
+        y += 6;
+    });
+    
+    // Totale
+    y += 5;
+    doc.setFillColor(55, 71, 79);
+    doc.rect(10, y - 4, 190, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Totale: ${queue.length} articoli`, 12, y);
+    doc.text(`${totQta} pz`, 185, y);
+    
+    // Download
+    APP.downloadPDF(doc, `Inventario_${APP.formatDateFile(new Date())}.pdf`);
+};
+
+// Genera Report Ordini (clienti o fornitori)
+APP.generateReportOrdini = async function(tipo) {
+    const storeName = tipo === 'clienti' ? 'queueOrdiniClienti' : 'queueOrdiniFornitori';
+    const queue = await DB.getQueue(storeName);
+    
+    if (queue.length === 0) {
+        APP.showToast('Nessun ordine da esportare', 'error');
+        return;
+    }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    const titolo = tipo === 'clienti' ? 'Report Ordini Clienti' : 'Report Ordini Fornitori';
+    
+    doc.setFontSize(18);
+    doc.text(titolo, 105, 15, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(`Generato il ${APP.formatDate(new Date())}`, 105, 22, { align: 'center' });
     
     let y = 35;
     
-    if (context === 'inventario') {
-        // Tabella inventario
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'bold');
-        doc.text('Codice', 14, y);
-        doc.text('Locazione', 80, y);
-        doc.text('Qta', 140, y);
-        y += 6;
+    queue.forEach((ordine) => {
+        if (y > 250) {
+            doc.addPage();
+            y = 20;
+        }
         
+        const soggetto = tipo === 'clienti' ? ordine.cliente : ordine.fornitore;
+        const syncStatus = ordine.synced ? '✓ Sincronizzato' : '○ Da sincronizzare';
+        
+        // Header ordine
+        doc.setFillColor(tipo === 'clienti' ? 33 : 94, tipo === 'clienti' ? 150 : 53, tipo === 'clienti' ? 243 : 177);
+        doc.rect(10, y - 4, 190, 10, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Ordine ${ordine.registro}/${ordine.numero} - ${APP.formatDate(new Date(ordine.data))}`, 12, y + 2);
+        doc.setFontSize(8);
+        doc.text(syncStatus, 175, y + 2);
+        
+        y += 12;
+        doc.setTextColor(0, 0, 0);
         doc.setFont(undefined, 'normal');
-        queue.forEach(item => {
+        doc.setFontSize(10);
+        doc.text(`${tipo === 'clienti' ? 'Cliente' : 'Fornitore'}: ${soggetto.ragSoc1}`, 12, y);
+        doc.text(`P.IVA: ${soggetto.partitaIva || '-'}`, 120, y);
+        
+        y += 8;
+        
+        // Righe ordine
+        let totaleOrdine = 0;
+        ordine.righe.forEach((riga) => {
             if (y > 280) {
                 doc.addPage();
                 y = 20;
             }
-            doc.text(item.codice, 14, y);
-            doc.text(item.locazione || '-', 80, y);
-            doc.text(item.qty.toString(), 140, y);
+            
+            const totRiga = riga.qty * riga.prezzo;
+            totaleOrdine += totRiga;
+            
+            doc.setFontSize(8);
+            doc.text(`  ${riga.codice}`, 12, y);
+            doc.text(`${riga.des1.substring(0, 40)}`, 40, y);
+            doc.text(`${riga.qty} ${riga.um}`, 140, y);
+            doc.text(`€ ${totRiga.toFixed(2)}`, 170, y);
             y += 5;
         });
         
-        // Totale
-        y += 5;
+        // Totale ordine
         doc.setFont(undefined, 'bold');
-        const totQta = queue.reduce((sum, item) => sum + item.qty, 0);
-        doc.text(`Totale: ${queue.length} articoli, ${totQta} pezzi`, 14, y);
-        
-    } else {
-        // Ordini
-        queue.forEach((ordine, idx) => {
-            if (y > 250) {
-                doc.addPage();
-                y = 20;
-            }
-            
-            const soggetto = context === 'ordiniClienti' ? ordine.cliente : ordine.fornitore;
-            
-            doc.setFont(undefined, 'bold');
-            doc.text(`Ordine ${ordine.registro}/${ordine.numero} - ${APP.formatDate(new Date(ordine.data))}`, 14, y);
-            y += 6;
-            
-            doc.setFont(undefined, 'normal');
-            doc.text(`${context === 'ordiniClienti' ? 'Cliente' : 'Fornitore'}: ${soggetto.ragSoc1}`, 14, y);
-            y += 8;
-            
-            // Righe
-            ordine.righe.forEach(riga => {
-                if (y > 280) {
-                    doc.addPage();
-                    y = 20;
-                }
-                doc.text(`  ${riga.codice} - ${riga.des1.substring(0, 40)}`, 14, y);
-                doc.text(`Qta: ${riga.qty}`, 160, y);
-                y += 5;
-            });
-            
-            y += 10;
-        });
+        doc.text(`Totale ordine: € ${totaleOrdine.toFixed(2)}`, 150, y + 2);
+        y += 15;
+    });
+    
+    APP.downloadPDF(doc, `Ordini_${tipo}_${APP.formatDateFile(new Date())}.pdf`);
+};
+
+// Genera Ordine Fornitore Professionale (con logo, prezzi, IVA)
+APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Carica logo se non già in cache
+    if (!APP.logoBase64) {
+        APP.logoBase64 = await APP.loadLogo();
     }
     
-    // Salva PDF
-    const pdfBlob = doc.output('blob');
-    const fileName = `${title.replace(/\s+/g, '_')}_${APP.formatDateFile(new Date())}.pdf`;
+    // Logo in alto a sinistra
+    if (APP.logoBase64) {
+        try {
+            doc.addImage(APP.logoBase64, 'JPEG', 10, 10, 50, 37.5);
+        } catch (e) {
+            console.warn('Errore inserimento logo:', e);
+        }
+    }
     
-    // Download
+    // Intestazione ordine
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('ORDINE A FORNITORE', 130, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
+    doc.text(`N. ${ordine.registro}/${ordine.numero}`, 130, 30, { align: 'center' });
+    doc.text(`Data: ${APP.formatDate(new Date(ordine.data))}`, 130, 37, { align: 'center' });
+    
+    // Dati fornitore
+    const forn = ordine.fornitore;
+    let y = 55;
+    
+    doc.setFillColor(240, 240, 240);
+    doc.rect(10, y, 190, 30, 'F');
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('FORNITORE:', 15, y + 7);
+    doc.setFont(undefined, 'normal');
+    doc.text(forn.ragSoc1, 45, y + 7);
+    if (forn.ragSoc2) doc.text(forn.ragSoc2, 45, y + 13);
+    doc.text(`${forn.indirizzo}, ${forn.cap} ${forn.localita} (${forn.provincia})`, 15, y + 20);
+    doc.text(`P.IVA: ${forn.partitaIva || '-'}`, 15, y + 26);
+    if (forn.telefono) doc.text(`Tel: ${forn.telefono}`, 120, y + 26);
+    
+    // Tabella articoli
+    y = 95;
+    
+    // Header tabella
+    doc.setFillColor(55, 71, 79);
+    doc.rect(10, y, 190, 10, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.text('Codice', 12, y + 7);
+    doc.text('Descrizione', 45, y + 7);
+    doc.text('U.M.', 120, y + 7);
+    doc.text('Qta', 135, y + 7);
+    if (showPrices) {
+        doc.text('Prezzo', 150, y + 7);
+        doc.text('IVA%', 170, y + 7);
+        doc.text('Totale', 185, y + 7);
+    }
+    
+    y += 12;
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, 'normal');
+    
+    let totaleImponibile = 0;
+    let totaleIva = 0;
+    const ivaPerAliquota = {};
+    
+    ordine.righe.forEach((riga, index) => {
+        if (y > 250) {
+            doc.addPage();
+            y = 20;
+        }
+        
+        // Riga alternata
+        if (index % 2 === 0) {
+            doc.setFillColor(250, 250, 250);
+            doc.rect(10, y - 4, 190, 8, 'F');
+        }
+        
+        const aliquota = riga.aliquotaIva || 22;
+        const totRiga = riga.qty * riga.prezzo;
+        const ivaRiga = totRiga * aliquota / 100;
+        
+        totaleImponibile += totRiga;
+        totaleIva += ivaRiga;
+        
+        // Raggruppa IVA per aliquota
+        if (!ivaPerAliquota[aliquota]) ivaPerAliquota[aliquota] = 0;
+        ivaPerAliquota[aliquota] += ivaRiga;
+        
+        doc.setFontSize(8);
+        doc.text(riga.codice.substring(0, 18), 12, y);
+        doc.text(`${riga.des1.substring(0, 40)}`, 45, y);
+        doc.text(riga.um || 'PZ', 120, y);
+        doc.text(riga.qty.toString(), 137, y);
+        
+        if (showPrices) {
+            doc.text(`€ ${riga.prezzo.toFixed(2)}`, 148, y);
+            doc.text(`${aliquota}%`, 172, y);
+            doc.text(`€ ${totRiga.toFixed(2)}`, 183, y);
+        }
+        
+        y += 8;
+    });
+    
+    // Totali in basso a destra
+    if (showPrices) {
+        y = Math.max(y + 10, 220);
+        
+        doc.setFillColor(245, 245, 245);
+        doc.rect(120, y, 80, 45, 'F');
+        
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        
+        // Imponibile
+        doc.text('Totale Imponibile:', 125, y + 8);
+        doc.text(`€ ${totaleImponibile.toFixed(2)}`, 185, y + 8, { align: 'right' });
+        
+        // Dettaglio IVA per aliquota
+        let yIva = y + 16;
+        Object.entries(ivaPerAliquota).forEach(([aliquota, importo]) => {
+            doc.text(`IVA ${aliquota}%:`, 125, yIva);
+            doc.text(`€ ${importo.toFixed(2)}`, 185, yIva, { align: 'right' });
+            yIva += 7;
+        });
+        
+        // Totale ordine
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(12);
+        const totaleOrdine = totaleImponibile + totaleIva;
+        doc.text('TOTALE ORDINE:', 125, y + 38);
+        doc.text(`€ ${totaleOrdine.toFixed(2)}`, 185, y + 38, { align: 'right' });
+    }
+    
+    // Piè di pagina
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Documento generato il ${APP.formatDate(new Date())} alle ${new Date().toLocaleTimeString('it-IT')}`, 105, 285, { align: 'center' });
+    
+    return doc;
+};
+
+// Download PDF
+APP.downloadPDF = function(doc, fileName) {
+    const pdfBlob = doc.output('blob');
     const url = URL.createObjectURL(pdfBlob);
     const a = document.createElement('a');
     a.href = url;
     a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
+    APP.showToast('PDF generato', 'success');
+};
+
+// Condividi documento
+APP.shareDocument = async function(doc, fileName, title) {
+    const pdfBlob = doc.output('blob');
+    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
     
-    APP.showToast('Report PDF generato', 'success');
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+            await navigator.share({
+                title: title,
+                files: [file]
+            });
+            APP.showToast('Documento condiviso', 'success');
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                APP.downloadPDF(doc, fileName);
+            }
+        }
+    } else {
+        // Fallback: download
+        APP.downloadPDF(doc, fileName);
+    }
+};
+
+// Genera report legacy (per compatibilità)
+APP.generateReport = async function(context) {
+    switch (context) {
+        case 'inventario':
+            await APP.generateReportInventario();
+            break;
+        case 'ordiniClienti':
+            await APP.generateReportOrdini('clienti');
+            break;
+        case 'ordiniFornitori':
+            await APP.generateReportOrdini('fornitori');
+            break;
+    }
 };
 
 // ==========================================
@@ -2018,46 +2595,102 @@ APP.vibrate = function(duration = 50) {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('Picam v3.0 - Inizializzazione...');
+    console.log('Picam v3.1 - Inizializzazione...');
     
-    // Carica configurazione
+    // Carica configurazione salvata
     const savedConfig = localStorage.getItem('picam_config');
     if (savedConfig) {
-        APP.config = JSON.parse(savedConfig);
+        try {
+            APP.config = JSON.parse(savedConfig);
+        } catch (e) {
+            console.warn('Config non valida, uso default');
+        }
     }
     
-    // Verifica autenticazione
+    // Pre-compila i campi configurazione
+    document.getElementById('config-folder').value = APP.config.folder || 'archivi/Ordini';
+    document.getElementById('config-deposito').value = APP.config.deposito || '01';
+    
+    // Verifica autenticazione esistente
     if (APP.checkAuth()) {
-        // Inizializza DB
-        try {
-            await DB.init();
-            const stats = await DB.getStats();
+        // Token ancora valido
+        console.log('Token valido trovato');
+        await APP.initWithAuth();
+    } else {
+        // Token scaduto o assente - tenta login automatico
+        const savedEmail = localStorage.getItem('picam_user_email');
+        
+        if (savedEmail) {
+            console.log('Token scaduto, tentativo rinnovo automatico...');
+            document.getElementById('login-status').className = 'status-message loading';
+            document.getElementById('login-status').textContent = 'Accesso automatico...';
             
-            if (stats.articoli > 0) {
-                // Dati già presenti, vai al menu
-                await APP.loadSavedQueues();
-                APP.showScreen('menu');
-                APP.updateMenuStats();
-                APP.updateBadges();
+            // Attendi che Google Identity Services sia pronto
+            const waitForGoogle = () => {
+                return new Promise((resolve) => {
+                    if (typeof google !== 'undefined' && google.accounts) {
+                        resolve();
+                    } else {
+                        const check = setInterval(() => {
+                            if (typeof google !== 'undefined' && google.accounts) {
+                                clearInterval(check);
+                                resolve();
+                            }
+                        }, 100);
+                        // Timeout dopo 3 secondi
+                        setTimeout(() => {
+                            clearInterval(check);
+                            resolve();
+                        }, 3000);
+                    }
+                });
+            };
+            
+            await waitForGoogle();
+            
+            const success = await APP.tryAutoLogin();
+            if (success) {
+                await APP.initWithAuth();
             } else {
-                // Mostra setup per caricare dati
+                // Login automatico fallito, mostra schermata login
+                document.getElementById('login-status').className = 'status-message';
+                document.getElementById('login-status').textContent = `Tocca per accedere come ${savedEmail}`;
                 APP.showScreen('setup');
-                document.getElementById('step-login').classList.add('completed');
-                document.getElementById('step-config').classList.remove('disabled');
-                document.getElementById('step-load').classList.remove('disabled');
-                document.getElementById('login-status').textContent = `Connesso come ${APP.userEmail}`;
-                document.getElementById('login-status').className = 'status-message success';
-                document.getElementById('config-folder').value = APP.config.folder;
-                document.getElementById('config-deposito').value = APP.config.deposito;
             }
-        } catch (e) {
-            console.error('Errore init DB:', e);
+        } else {
+            // Nessun account salvato
             APP.showScreen('setup');
         }
-    } else {
-        APP.showScreen('setup');
     }
 });
+
+// Inizializza app dopo autenticazione
+APP.initWithAuth = async function() {
+    try {
+        await DB.init();
+        const stats = await DB.getStats();
+        
+        if (stats.articoli > 0) {
+            // Dati già presenti, vai al menu
+            await APP.loadSavedQueues();
+            APP.showScreen('menu');
+            APP.updateMenuStats();
+            APP.updateBadges();
+            APP.showToast(`Bentornato! ${stats.articoli} articoli caricati`, 'success');
+        } else {
+            // Mostra setup per caricare dati
+            APP.showScreen('setup');
+            document.getElementById('step-login').classList.add('completed');
+            document.getElementById('step-config').classList.remove('disabled');
+            document.getElementById('step-load').classList.remove('disabled');
+            document.getElementById('login-status').textContent = `Connesso come ${APP.userEmail}`;
+            document.getElementById('login-status').className = 'status-message success';
+        }
+    } catch (e) {
+        console.error('Errore init DB:', e);
+        APP.showScreen('setup');
+    }
+};
 
 // Registra Service Worker
 if ('serviceWorker' in navigator) {

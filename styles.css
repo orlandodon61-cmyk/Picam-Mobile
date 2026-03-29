@@ -1623,6 +1623,185 @@ input::placeholder {
 .mb-16 { margin-bottom: 16px; }
 
 /* ==========================================
+   STILI CODA AVANZATI
+   ========================================== */
+.queue-item.selectable,
+.ordine-item.selectable {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.queue-item.selectable:hover,
+.ordine-item.selectable:hover {
+    background: rgba(33, 150, 243, 0.1);
+    border-color: var(--color-primary);
+}
+
+.queue-item.selectable:active,
+.ordine-item.selectable:active {
+    transform: scale(0.98);
+}
+
+.queue-item-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.queue-item-status {
+    font-size: 12px;
+    color: var(--color-success);
+    font-weight: 600;
+}
+
+.ordine-status {
+    font-size: 10px;
+    color: var(--text-secondary);
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.1);
+}
+
+.ordine-status.synced {
+    color: white;
+    background: var(--color-success);
+}
+
+.ordine-soggetto {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.ordine-righe {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.queue-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 12px;
+    font-style: italic;
+}
+
+/* ==========================================
+   MODAL DETTAGLIO ELEMENTO
+   ========================================== */
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.detail-row label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.detail-row span {
+    font-weight: 500;
+    color: var(--text-primary);
+    text-align: right;
+}
+
+.detail-row.editable input {
+    width: 80px;
+    padding: 8px 12px;
+    border: 2px solid var(--color-primary);
+    border-radius: var(--border-radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.sync-warning {
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px solid var(--color-warning);
+    color: #F57C00;
+    padding: 10px 12px;
+    border-radius: var(--border-radius-sm);
+    font-size: 12px;
+    margin: 12px 0;
+    text-align: center;
+}
+
+.righe-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 12px;
+}
+
+.riga-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 12px;
+}
+
+.riga-cod {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--color-primary);
+    min-width: 60px;
+}
+
+.riga-desc {
+    flex: 1;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.riga-qty-edit {
+    width: 50px !important;
+    padding: 4px 8px !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 4px !important;
+    font-size: 14px !important;
+    text-align: center !important;
+}
+
+.riga-tot {
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 60px;
+    text-align: right;
+}
+
+.item-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-light);
+}
+
+.item-detail-actions button {
+    flex: 1;
+    min-width: calc(50% - 5px);
+}
+
+#item-detail-content h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 16px 0 8px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+/* ==========================================
    RESPONSIVE
    ========================================== */
 @media (max-width: 400px) {

@@ -8,13 +8,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="description" content="Picam - Gestione Inventario e Ordini">
     
-    <title>Picam v3.0</title>
+    <title>Picam v3.1</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     
-    <link rel="stylesheet" href="styles.css?v=19">
+    <link rel="stylesheet" href="styles.css?v=21">
     
     <!-- SheetJS per Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -42,7 +42,7 @@
             <div class="logo-section">
                 <div class="logo-icon">📦</div>
                 <h1 class="logo-title">PICAM</h1>
-                <p class="logo-subtitle">Inventario & Ordini v3.0</p>
+                <p class="logo-subtitle">Inventario & Ordini v3.1</p>
             </div>
 
             <!-- Step 1: Login Google -->
@@ -451,6 +451,22 @@
     </div>
 
     <!-- ==========================================
+         MODAL: DETTAGLIO ELEMENTO
+         ========================================== -->
+    <div class="modal-overlay hidden" id="modal-item-detail">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="item-detail-title">Dettaglio</h3>
+                <button class="btn-close" onclick="APP.closeItemDetailModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="item-detail-content"></div>
+                <div class="item-detail-actions" id="item-detail-actions"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
          MODAL: IMPOSTAZIONI
          ========================================== -->
     <div class="modal-overlay hidden" id="modal-settings">
@@ -533,7 +549,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="db.js?v=19"></script>
-    <script src="app.js?v=19"></script>
+    <script src="db.js?v=21"></script>
+    <script src="app.js?v=21"></script>
 </body>
 </html>
