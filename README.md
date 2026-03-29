@@ -1,7 +1,7 @@
-# 📦 PICAM PWA v3.3
+# 📦 PICAM PWA v3.4
 
 **Versione:** 3.3  
-**Cache:** v23  
+**Cache:** v24  
 **Data:** 29 Marzo 2026  
 
 ---
@@ -40,7 +40,7 @@
 
 ---
 
-## 🆕 Novità v3.3
+## 🆕 Novità v3.4
 
 1. **Ricerca su descrizione** - Cerca anche su des1 e des2
 2. **Salta caricamento** - Usa dati già caricati senza ricaricare
@@ -62,11 +62,11 @@
 
 ```
 Picam-Mobile/
-├── index.html      # Struttura HTML (v23)
-├── styles.css      # Stili CSS (v23)
-├── app.js          # Logica applicativa (v23)
-├── db.js           # Database IndexedDB (v23)
-├── sw.js           # Service Worker (cache-v23)
+├── index.html      # Struttura HTML (v24)
+├── styles.css      # Stili CSS (v24)
+├── app.js          # Logica applicativa (v24)
+├── db.js           # Database IndexedDB (v24)
+├── sw.js           # Service Worker (cache-v24)
 ├── manifest.json   # Manifest PWA
 ├── icon-192.png    # Icona 192x192
 ├── icon-512.png    # Icona 512x512
@@ -141,4 +141,4 @@ Repository: https://github.com/orlandodon61-cmyk/Picam-Mobile
 
 ---
 
-© 2026 Techmatesrls - Picam PWA v3.3
+© 2026 Techmatesrls - Picam PWA v3.4

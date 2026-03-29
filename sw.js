@@ -1,9 +1,9 @@
 // ==========================================
-// PICAM v3.3 - Service Worker
+// PICAM v3.4 - Service Worker
 // Cache Version: v22
 // ==========================================
 
-const CACHE_NAME = 'picam-cache-v23';
+const CACHE_NAME = 'picam-cache-v24';
 const ASSETS = [
     './',
     './index.html',
@@ -20,7 +20,7 @@ const ASSETS = [
 
 // Install
 self.addEventListener('install', event => {
-    console.log('[SW] Install v23');
+    console.log('[SW] Install v24');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
@@ -33,7 +33,7 @@ self.addEventListener('install', event => {
 
 // Activate
 self.addEventListener('activate', event => {
-    console.log('[SW] Activate v23');
+    console.log('[SW] Activate v24');
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(

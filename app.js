@@ -559,12 +559,14 @@ APP.goToMenu = function() {
 };
 
 APP.openInventario = function() {
+    APP.currentContext = 'inventario';
     APP.showScreen('inventario');
     APP.updateHeaderQueueCount('inv');
     APP.renderHistory();
 };
 
 APP.openOrdiniClienti = async function() {
+    APP.currentContext = 'ordiniClienti';
     APP.showScreen('ordini-clienti');
     APP.updateHeaderQueueCount('ordCli');
     
@@ -580,6 +582,7 @@ APP.openOrdiniClienti = async function() {
 };
 
 APP.openOrdiniFornitori = async function() {
+    APP.currentContext = 'ordiniFornitori';
     APP.showScreen('ordini-fornitori');
     APP.updateHeaderQueueCount('ordFor');
     
@@ -2723,7 +2726,7 @@ APP.vibrate = function(duration = 50) {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('Picam v3.3 - Inizializzazione...');
+    console.log('Picam v3.4 - Inizializzazione...');
     
     // Carica configurazione salvata
     const savedConfig = localStorage.getItem('picam_config');
