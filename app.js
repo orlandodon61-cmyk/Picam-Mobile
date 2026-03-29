@@ -2665,7 +2665,7 @@ APP.vibrate = function(duration = 50) {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('Picam v3.1 - Inizializzazione...');
+    console.log('Picam v3.2 - Inizializzazione...');
     
     // Carica configurazione salvata
     const savedConfig = localStorage.getItem('picam_config');

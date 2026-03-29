@@ -1,5 +1,5 @@
 // ==========================================
-// PICAM v3.1 - Service Worker
+// PICAM v3.2 - Service Worker
 // Cache Version: v22
 // ==========================================
 
@@ -20,7 +20,7 @@ const ASSETS = [
 
 // Install
 self.addEventListener('install', event => {
-    console.log('[SW] Install v13');
+    console.log('[SW] Install v22');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
@@ -33,7 +33,7 @@ self.addEventListener('install', event => {
 
 // Activate
 self.addEventListener('activate', event => {
-    console.log('[SW] Activate v13');
+    console.log('[SW] Activate v22');
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
