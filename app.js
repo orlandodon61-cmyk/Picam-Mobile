@@ -2105,21 +2105,45 @@ APP.logoBase64 = null;
 // Carica logo da Google Drive
 APP.loadLogo = async function() {
     try {
-        const folderId = await APP.findFolder(APP.config.folder);
-        if (!folderId) return null;
+        // Cerca prima nella cartella configurata
+        let folderId = await APP.findFolder(APP.config.folder);
         
-        const query = `name='logo.jpg' and '${folderId}' in parents and trashed=false`;
-        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`;
+        // Cerca logo.jpg o logo.png
+        const searchLogo = async (parentId) => {
+            const query = parentId 
+                ? `(name='logo.jpg' or name='logo.png') and '${parentId}' in parents and trashed=false`
+                : `(name='logo.jpg' or name='logo.png') and trashed=false`;
+            
+            const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`;
+            
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${APP.accessToken}` }
+            });
+            const data = await response.json();
+            
+            return data.files && data.files.length > 0 ? data.files[0] : null;
+        };
         
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${APP.accessToken}` }
-        });
-        const data = await response.json();
+        // Prima cerca nella cartella configurata
+        let logoFile = null;
+        if (folderId) {
+            logoFile = await searchLogo(folderId);
+        }
         
-        if (!data.files || data.files.length === 0) return null;
+        // Se non trovato, cerca nella root
+        if (!logoFile) {
+            console.log('Logo non trovato nella cartella, cerco nella root...');
+            logoFile = await searchLogo(null);
+        }
         
-        const fileId = data.files[0].id;
-        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        if (!logoFile) {
+            console.log('Logo non trovato');
+            return null;
+        }
+        
+        console.log('Logo trovato:', logoFile.name);
+        
+        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${logoFile.id}?alt=media`;
         
         const fileResponse = await fetch(downloadUrl, {
             headers: { 'Authorization': `Bearer ${APP.accessToken}` }
@@ -2240,7 +2264,7 @@ APP.generateReportOrdini = async function(tipo) {
         }
         
         const soggetto = tipo === 'clienti' ? ordine.cliente : ordine.fornitore;
-        const syncStatus = ordine.synced ? '✓ Sincronizzato' : '○ Da sincronizzare';
+        const syncStatus = ordine.synced ? '[SYNC]' : '[DA SYNC]';
         
         // Header ordine
         doc.setFillColor(tipo === 'clienti' ? 33 : 94, tipo === 'clienti' ? 150 : 53, tipo === 'clienti' ? 243 : 177);
@@ -2299,142 +2323,188 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
         APP.logoBase64 = await APP.loadLogo();
     }
     
-    // Logo in alto a sinistra
+    const forn = ordine.fornitore;
+    const dataOrdine = APP.formatDate(new Date(ordine.data));
+    const dataOrdineTratto = dataOrdine.replace(/\//g, '-');
+    
+    // ========== HEADER ==========
+    
+    // Logo in alto a sinistra (se presente)
+    let logoEndX = 10;
     if (APP.logoBase64) {
         try {
-            doc.addImage(APP.logoBase64, 'JPEG', 10, 10, 50, 37.5);
+            doc.addImage(APP.logoBase64, 'JPEG', 10, 8, 55, 35);
+            logoEndX = 70;
         } catch (e) {
             console.warn('Errore inserimento logo:', e);
         }
     }
     
-    // Intestazione ordine
-    doc.setFontSize(20);
+    // Box intestatario fornitore (alto a destra)
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.rect(115, 8, 85, 35);
+    
+    doc.setFontSize(8);
     doc.setFont(undefined, 'bold');
-    doc.text('ORDINE A FORNITORE', 130, 20, { align: 'center' });
+    doc.text('INTESTATARIO', 117, 13);
+    
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.text(forn.ragSoc1 || '', 117, 19);
+    if (forn.ragSoc2) doc.text(forn.ragSoc2, 117, 24);
+    doc.text(`${forn.indirizzo || ''}`, 117, forn.ragSoc2 ? 29 : 24);
+    doc.text(`${forn.cap || ''} ${forn.localita || ''} (${forn.provincia || ''})`, 117, forn.ragSoc2 ? 34 : 29);
+    
+    // ========== TITOLO ORDINE ==========
     
     doc.setFontSize(12);
-    doc.setFont(undefined, 'normal');
-    doc.text(`N. ${ordine.registro}/${ordine.numero}`, 130, 30, { align: 'center' });
-    doc.text(`Data: ${APP.formatDate(new Date(ordine.data))}`, 130, 37, { align: 'center' });
+    doc.setFont(undefined, 'bold');
+    doc.text(`CONFERMA D'ORDINE FORNITORE DEL ${dataOrdineTratto}`, 105, 52, { align: 'center' });
     
-    // Dati fornitore
-    const forn = ordine.fornitore;
-    let y = 55;
+    // ========== RIGA INFO ORDINE ==========
     
+    let y = 58;
+    
+    // Header riga info
     doc.setFillColor(240, 240, 240);
-    doc.rect(10, y, 190, 30, 'F');
+    doc.rect(10, y, 190, 7, 'F');
+    doc.setDrawColor(0);
+    doc.rect(10, y, 190, 7);
     
-    doc.setFontSize(10);
+    doc.setFontSize(6);
     doc.setFont(undefined, 'bold');
-    doc.text('FORNITORE:', 15, y + 7);
+    doc.text('COD. FORNITORE', 12, y + 5);
+    doc.text('PARTITA IVA FORNITORE', 35, y + 5);
+    doc.text('C. PAG.', 72, y + 5);
+    doc.text('DESCRIZIONE PAGAMENTO', 85, y + 5);
+    doc.text('FRAZ.', 125, y + 5);
+    doc.text('NUMERO', 140, y + 5);
+    doc.text('DATA', 160, y + 5);
+    doc.text('N. PAG.', 185, y + 5);
+    
+    // Valori riga info
+    y += 7;
+    doc.rect(10, y, 190, 7);
     doc.setFont(undefined, 'normal');
-    doc.text(forn.ragSoc1, 45, y + 7);
-    if (forn.ragSoc2) doc.text(forn.ragSoc2, 45, y + 13);
-    doc.text(`${forn.indirizzo}, ${forn.cap} ${forn.localita} (${forn.provincia})`, 15, y + 20);
-    doc.text(`P.IVA: ${forn.partitaIva || '-'}`, 15, y + 26);
-    if (forn.telefono) doc.text(`Tel: ${forn.telefono}`, 120, y + 26);
+    doc.setFontSize(8);
+    doc.text(forn.codice || '', 12, y + 5);
+    doc.text(forn.partitaIva || '', 35, y + 5);
+    doc.text('', 72, y + 5); // Codice pagamento
+    doc.text('', 85, y + 5); // Descrizione pagamento
+    doc.text('SI', 127, y + 5);
+    doc.text(`${ordine.registro}/${ordine.numero}`, 140, y + 5);
+    doc.text(dataOrdine, 160, y + 5);
+    doc.text('1', 188, y + 5);
     
-    // Tabella articoli
-    y = 95;
-    
-    // Header tabella
-    doc.setFillColor(55, 71, 79);
-    doc.rect(10, y, 190, 10, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'bold');
-    doc.text('Codice', 12, y + 7);
-    doc.text('Descrizione', 45, y + 7);
-    doc.text('U.M.', 120, y + 7);
-    doc.text('Qta', 135, y + 7);
-    if (showPrices) {
-        doc.text('Prezzo', 150, y + 7);
-        doc.text('IVA%', 170, y + 7);
-        doc.text('Totale', 185, y + 7);
-    }
+    // ========== TABELLA ARTICOLI ==========
     
     y += 12;
-    doc.setTextColor(0, 0, 0);
+    
+    // Header tabella articoli
+    doc.setFillColor(240, 240, 240);
+    doc.rect(10, y, 190, 7, 'F');
+    doc.rect(10, y, 190, 7);
+    
+    doc.setFontSize(6);
+    doc.setFont(undefined, 'bold');
+    doc.text('COD.ARTICOLO', 12, y + 5);
+    doc.text('DESCRIZIONE', 45, y + 5);
+    doc.text('COD. ART. FORNIT.', 95, y + 5);
+    doc.text("QUANTITA'", 120, y + 5);
+    doc.text('U.M.', 138, y + 5);
+    
+    if (showPrices) {
+        doc.text('PREZZO UNITARIO', 150, y + 5);
+        doc.text('SCONTI/AUMENTI', 175, y + 5);
+    }
+    doc.text('DATA CONS', 192, y + 5, { align: 'right' });
+    
+    y += 7;
+    
+    // Righe articoli
+    let totaleMerce = 0;
     doc.setFont(undefined, 'normal');
+    doc.setFontSize(8);
     
-    let totaleImponibile = 0;
-    let totaleIva = 0;
-    const ivaPerAliquota = {};
-    
-    ordine.righe.forEach((riga, index) => {
-        if (y > 250) {
+    ordine.righe.forEach((riga) => {
+        if (y > 240) {
             doc.addPage();
             y = 20;
         }
         
-        // Riga alternata
-        if (index % 2 === 0) {
-            doc.setFillColor(250, 250, 250);
-            doc.rect(10, y - 4, 190, 8, 'F');
-        }
+        // Linea separatrice
+        doc.setDrawColor(200, 200, 200);
+        doc.line(10, y + 5, 200, y + 5);
         
-        const aliquota = riga.aliquotaIva || 22;
-        const totRiga = riga.qty * riga.prezzo;
-        const ivaRiga = totRiga * aliquota / 100;
+        doc.setDrawColor(0);
+        doc.text(riga.codice.substring(0, 18), 12, y + 4);
+        doc.text(riga.des1.substring(0, 28), 45, y + 4);
+        doc.text('', 95, y + 4); // Cod. art. fornitore
         
-        totaleImponibile += totRiga;
-        totaleIva += ivaRiga;
-        
-        // Raggruppa IVA per aliquota
-        if (!ivaPerAliquota[aliquota]) ivaPerAliquota[aliquota] = 0;
-        ivaPerAliquota[aliquota] += ivaRiga;
-        
-        doc.setFontSize(8);
-        doc.text(riga.codice.substring(0, 18), 12, y);
-        doc.text(`${riga.des1.substring(0, 40)}`, 45, y);
-        doc.text(riga.um || 'PZ', 120, y);
-        doc.text(riga.qty.toString(), 137, y);
+        // Quantità con formato x,xxx
+        const qtyFormatted = riga.qty.toFixed(3).replace('.', ',');
+        doc.text(qtyFormatted, 120, y + 4);
+        doc.text(riga.um || 'Nr.', 138, y + 4);
         
         if (showPrices) {
-            doc.text(`€ ${riga.prezzo.toFixed(2)}`, 148, y);
-            doc.text(`${aliquota}%`, 172, y);
-            doc.text(`€ ${totRiga.toFixed(2)}`, 183, y);
+            const prezzoFormatted = riga.prezzo.toFixed(6).replace('.', ',');
+            doc.text(prezzoFormatted, 150, y + 4);
+            doc.text('', 175, y + 4); // Sconti
+            totaleMerce += riga.qty * riga.prezzo;
         }
+        
+        doc.text(dataOrdine, 192, y + 4, { align: 'right' });
         
         y += 8;
     });
     
-    // Totali in basso a destra
+    // ========== FOOTER ==========
+    
+    // Posiziona footer in basso
+    y = 250;
+    
+    // Riga totale merce
+    doc.setDrawColor(0);
+    doc.rect(10, y, 190, 12);
+    
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'bold');
+    doc.text('TOTALE MERCE', 12, y + 5);
+    doc.text('%SC.CASSA', 45, y + 5);
+    doc.text('PORTO', 70, y + 5);
+    doc.text('TRASP. A CURA', 95, y + 5);
+    doc.text('RESPONSABILE ACQUISTI', 130, y + 5);
+    
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
     if (showPrices) {
-        y = Math.max(y + 10, 220);
-        
-        doc.setFillColor(245, 245, 245);
-        doc.rect(120, y, 80, 45, 'F');
-        
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
-        
-        // Imponibile
-        doc.text('Totale Imponibile:', 125, y + 8);
-        doc.text(`€ ${totaleImponibile.toFixed(2)}`, 185, y + 8, { align: 'right' });
-        
-        // Dettaglio IVA per aliquota
-        let yIva = y + 16;
-        Object.entries(ivaPerAliquota).forEach(([aliquota, importo]) => {
-            doc.text(`IVA ${aliquota}%:`, 125, yIva);
-            doc.text(`€ ${importo.toFixed(2)}`, 185, yIva, { align: 'right' });
-            yIva += 7;
-        });
-        
-        // Totale ordine
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(12);
-        const totaleOrdine = totaleImponibile + totaleIva;
-        doc.text('TOTALE ORDINE:', 125, y + 38);
-        doc.text(`€ ${totaleOrdine.toFixed(2)}`, 185, y + 38, { align: 'right' });
+        doc.text(totaleMerce.toFixed(2).replace('.', ','), 12, y + 10);
     }
     
-    // Piè di pagina
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(128, 128, 128);
-    doc.text(`Documento generato il ${APP.formatDate(new Date())} alle ${new Date().toLocaleTimeString('it-IT')}`, 105, 285, { align: 'center' });
+    // Riga vettore
+    y += 12;
+    doc.rect(10, y, 140, 10);
+    doc.rect(150, y, 50, 10);
+    
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'bold');
+    doc.text('VETTORE', 12, y + 4);
+    doc.text('Tel.', 152, y + 8);
+    
+    // Riga destinazione
+    y += 10;
+    doc.rect(10, y, 190, 12);
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'bold');
+    doc.text('DESTINAZIONE MERCE', 12, y + 5);
+    
+    // Riga note
+    y += 12;
+    doc.rect(10, y, 190, 12);
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'bold');
+    doc.text('NOTE', 12, y + 5);
     
     return doc;
 };
