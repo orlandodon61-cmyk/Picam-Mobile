@@ -182,8 +182,8 @@
                 <span class="header-title">Inventario</span>
             </div>
             <div class="header-right">
-                <button class="btn-icon-only" onclick="APP.openQueueModal('inventario')" title="Coda">
-                    📋 <span id="header-queue-count-inv" style="font-size: 12px;"></span>
+                <button class="btn-queue-main" onclick="APP.openQueueModal('inventario')" title="Gestione Movimenti: modifica, stampa, sincronizza">
+                    📋 GESTIONE <span id="header-queue-count-inv" class="queue-badge"></span>
                 </button>
             </div>
         </header>
@@ -228,8 +228,8 @@
                 <span class="header-title">Ordini Clienti</span>
             </div>
             <div class="header-right">
-                <button class="btn-icon-only" onclick="APP.openQueueModal('ordiniClienti')" title="Coda ordini">
-                    📋 <span id="header-queue-count-ord-cli" style="font-size: 12px;"></span>
+                <button class="btn-queue-main" onclick="APP.openQueueModal('ordiniClienti')" title="Gestione Ordini: modifica, stampa, sincronizza">
+                    📋 GESTIONE <span id="header-queue-count-ord-cli" class="queue-badge"></span>
                 </button>
             </div>
         </header>
@@ -317,8 +317,8 @@
                 <span class="header-title">Ordini Fornitori</span>
             </div>
             <div class="header-right">
-                <button class="btn-icon-only" onclick="APP.openQueueModal('ordiniFornitori')" title="Coda ordini">
-                    📋 <span id="header-queue-count-ord-for" style="font-size: 12px;"></span>
+                <button class="btn-queue-main" onclick="APP.openQueueModal('ordiniFornitori')" title="Gestione Ordini: modifica, stampa, sincronizza">
+                    📋 GESTIONE <span id="header-queue-count-ord-for" class="queue-badge"></span>
                 </button>
             </div>
         </header>
@@ -392,6 +392,18 @@
                     <div class="totale-row">
                         <span>Totale quantità</span>
                         <span id="tot-for-qta">0</span>
+                    </div>
+                    <div class="totale-row totale-importo">
+                        <span>Imponibile</span>
+                        <span id="tot-for-imponibile">€ 0,00</span>
+                    </div>
+                    <div class="totale-row totale-importo">
+                        <span>IVA</span>
+                        <span id="tot-for-iva">€ 0,00</span>
+                    </div>
+                    <div class="totale-row totale-finale">
+                        <span>TOTALE ORDINE</span>
+                        <span id="tot-for-totale">€ 0,00</span>
                     </div>
                 </div>
             </div>

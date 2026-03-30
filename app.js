@@ -591,7 +591,21 @@ APP.mapPagamenti = function(pagRaw) {
 // Cache aliquote IVA per lookup veloce
 APP.aliquoteIvaCache = new Map();
 
-// Ottiene aliquota IVA reale dal codice
+// Versione sincrona per uso nel rendering (usa cache o fallback)
+APP.getAliquotaIvaSync = function(codIva) {
+    if (APP.aliquoteIvaCache.has(codIva)) {
+        return APP.aliquoteIvaCache.get(codIva);
+    }
+    // Fallback: se il codice è numerico, usalo come aliquota
+    const numerico = parseFloat(codIva);
+    if (!isNaN(numerico)) {
+        return numerico;
+    }
+    // Default 22%
+    return 22;
+};
+
+// Ottiene aliquota IVA reale dal codice (versione asincrona)
 APP.getAliquotaIva = async function(codIva) {
     // Prima controlla la cache
     if (APP.aliquoteIvaCache.has(codIva)) {
@@ -812,7 +826,8 @@ APP.updateHeaderQueueCount = async function(context) {
         
         const el = document.getElementById(elementId);
         if (el) {
-            el.textContent = count > 0 ? `(${count})` : '';
+            // Mostra solo il numero, il badge si nasconde se vuoto via CSS
+            el.textContent = count > 0 ? count : '';
         }
     } catch (e) {
         console.error('Errore updateHeaderQueueCount:', e);
@@ -1611,15 +1626,25 @@ APP.renderRigheOrdineFornitori = function() {
         container.innerHTML = '';
         document.getElementById('tot-for-articoli').textContent = '0';
         document.getElementById('tot-for-qta').textContent = '0';
+        document.getElementById('tot-for-imponibile').textContent = '€ 0,00';
+        document.getElementById('tot-for-iva').textContent = '€ 0,00';
+        document.getElementById('tot-for-totale').textContent = '€ 0,00';
         return;
     }
     
     let html = '';
     let totQta = 0;
+    let totImponibile = 0;
+    let totIva = 0;
     
     righe.forEach((riga, index) => {
         totQta += riga.qty;
-        const totRiga = riga.qty * riga.prezzo;
+        const impRiga = riga.qty * riga.prezzo;
+        const aliquota = APP.getAliquotaIvaSync(riga.codIvaAcquisto || '22');
+        const ivaRiga = impRiga * aliquota / 100;
+        
+        totImponibile += impRiga;
+        totIva += ivaRiga;
         
         html += `
             <div class="riga-item">
@@ -1629,7 +1654,7 @@ APP.renderRigheOrdineFornitori = function() {
                     <div class="riga-details">
                         <span>Qta: ${riga.qty} ${riga.um}</span>
                         <span>📦 Giac: ${riga.giacenza || 0}</span>
-                        <span class="riga-totale">€ ${totRiga.toFixed(2)}</span>
+                        <span class="riga-totale">€ ${impRiga.toFixed(2)}</span>
                     </div>
                 </div>
                 <button class="btn-remove-riga" onclick="APP.removeRigaOrdineFornitore(${index})">🗑️</button>
@@ -1637,9 +1662,14 @@ APP.renderRigheOrdineFornitori = function() {
         `;
     });
     
+    const totOrdine = totImponibile + totIva;
+    
     container.innerHTML = html;
     document.getElementById('tot-for-articoli').textContent = righe.length;
     document.getElementById('tot-for-qta').textContent = totQta;
+    document.getElementById('tot-for-imponibile').textContent = '€ ' + totImponibile.toFixed(2).replace('.', ',');
+    document.getElementById('tot-for-iva').textContent = '€ ' + totIva.toFixed(2).replace('.', ',');
+    document.getElementById('tot-for-totale').textContent = '€ ' + totOrdine.toFixed(2).replace('.', ',');
 };
 
 APP.updateBtnConfermaOrdFor = function() {
