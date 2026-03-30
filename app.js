@@ -140,30 +140,53 @@ APP.login = function() {
 };
 
 APP.getUserInfo = async function() {
-    try {
-        // Piccola attesa per dare tempo al token di propagarsi
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-            headers: { 'Authorization': `Bearer ${APP.accessToken}` }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Errore API: ${response.status}`);
+    let email = null;
+    let apiSuccess = false;
+    
+    // Prova a ottenere l'email dall'API con retry
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            // Attesa progressiva: 500ms, 1000ms, 1500ms
+            await new Promise(resolve => setTimeout(resolve, attempt * 500));
+            
+            if (!APP.accessToken) {
+                throw new Error('Token non disponibile');
+            }
+            
+            const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { 'Authorization': `Bearer ${APP.accessToken}` }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Errore API: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.email) {
+                email = data.email;
+                apiSuccess = true;
+                console.log(`getUserInfo: email ottenuta al tentativo ${attempt}`);
+                break;
+            }
+        } catch (error) {
+            console.warn(`getUserInfo tentativo ${attempt}/3 fallito:`, error.message);
         }
+    }
+    
+    // Se API fallisce, usa email salvata
+    if (!email) {
+        email = localStorage.getItem('picam_user_email');
+        console.log('getUserInfo: usando email salvata:', email);
+    }
+    
+    // Aggiorna stato UI
+    if (email) {
+        APP.userEmail = email;
+        localStorage.setItem('picam_user_email', email);
         
-        const data = await response.json();
-        
-        if (!data.email) {
-            throw new Error('Email non trovata nella risposta');
-        }
-        
-        APP.userEmail = data.email;
-        localStorage.setItem('picam_user_email', APP.userEmail);
-        
-        // Aggiorna UI
         document.getElementById('login-status').className = 'status-message success';
-        document.getElementById('login-status').textContent = `Connesso come ${APP.userEmail}`;
+        document.getElementById('login-status').textContent = `Connesso come ${email}`;
         
         document.getElementById('step-login').classList.add('completed');
         document.getElementById('step-config').classList.remove('disabled');
@@ -172,50 +195,31 @@ APP.getUserInfo = async function() {
         // Pre-compila configurazione salvata
         document.getElementById('config-folder').value = APP.config.folder;
         document.getElementById('config-deposito').value = APP.config.deposito;
+    } else {
+        // Nessuna email disponibile - permetti comunque di procedere
+        document.getElementById('login-status').className = 'status-message warning';
+        document.getElementById('login-status').textContent = 'Connesso (email non disponibile)';
         
-        // Verifica se ci sono dati esistenti e mostra pulsante "Salta"
-        try {
-            await DB.init();
-            const stats = await DB.getStats();
-            if (stats.articoli > 0) {
-                document.getElementById('btn-skip-load').classList.remove('hidden');
-                document.getElementById('load-status').textContent = `${stats.articoli} articoli già caricati`;
-                document.getElementById('load-status').className = 'status-message success';
-            }
-        } catch (e) {
-            console.log('DB non inizializzato, skip non disponibile');
+        document.getElementById('step-login').classList.add('completed');
+        document.getElementById('step-config').classList.remove('disabled');
+        document.getElementById('step-load').classList.remove('disabled');
+        
+        document.getElementById('config-folder').value = APP.config.folder;
+        document.getElementById('config-deposito').value = APP.config.deposito;
+    }
+    
+    // SEMPRE verifica se ci sono dati esistenti per il pulsante "Salta"
+    try {
+        await DB.init();
+        const stats = await DB.getStats();
+        console.log('DB stats:', stats);
+        if (stats.articoli > 0) {
+            document.getElementById('btn-skip-load').classList.remove('hidden');
+            document.getElementById('load-status').textContent = `${stats.articoli} articoli già caricati`;
+            document.getElementById('load-status').className = 'status-message success';
         }
-        
-    } catch (error) {
-        console.error('Errore getUserInfo:', error);
-        
-        // Usa email salvata se disponibile
-        const savedEmail = localStorage.getItem('picam_user_email');
-        if (savedEmail) {
-            APP.userEmail = savedEmail;
-            document.getElementById('login-status').className = 'status-message success';
-            document.getElementById('login-status').textContent = `Connesso come ${APP.userEmail}`;
-            
-            document.getElementById('step-login').classList.add('completed');
-            document.getElementById('step-config').classList.remove('disabled');
-            document.getElementById('step-load').classList.remove('disabled');
-            
-            // Verifica dati esistenti
-            try {
-                await DB.init();
-                const stats = await DB.getStats();
-                if (stats.articoli > 0) {
-                    document.getElementById('btn-skip-load').classList.remove('hidden');
-                    document.getElementById('load-status').textContent = `${stats.articoli} articoli già caricati`;
-                    document.getElementById('load-status').className = 'status-message success';
-                }
-            } catch (e) {
-                console.log('DB non inizializzato');
-            }
-        } else {
-            document.getElementById('login-status').className = 'status-message error';
-            document.getElementById('login-status').textContent = 'Errore nel recupero info utente';
-        }
+    } catch (e) {
+        console.log('DB non inizializzato, skip non disponibile:', e.message);
     }
 };
 
