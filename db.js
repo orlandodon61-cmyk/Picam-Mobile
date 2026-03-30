@@ -1,9 +1,9 @@
 // ==========================================
-// PICAM v3.0 - Database Module (IndexedDB)
+// PICAM v3.4 - Database Module (IndexedDB)
 // ==========================================
 
 const DB_NAME = 'PicamDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incrementato per nuovi store
 
 let db = null;
 
@@ -76,6 +76,18 @@ function initDB() {
             // Store METADATA (contatori, config, ecc.)
             if (!database.objectStoreNames.contains('metadata')) {
                 database.createObjectStore('metadata', { keyPath: 'key' });
+            }
+            
+            // Store ALIQUOTE IVA (v2)
+            if (!database.objectStoreNames.contains('aliquoteIva')) {
+                const ivaStore = database.createObjectStore('aliquoteIva', { keyPath: 'codice' });
+                ivaStore.createIndex('aliquota', 'aliquota', { unique: false });
+            }
+            
+            // Store PAGAMENTI (v2)
+            if (!database.objectStoreNames.contains('pagamenti')) {
+                const pagStore = database.createObjectStore('pagamenti', { keyPath: 'codice' });
+                pagStore.createIndex('descrizione', 'descrizione', { unique: false });
             }
 
             console.log('Schema IndexedDB creato');
@@ -438,6 +450,86 @@ async function getStats() {
 }
 
 // ==========================================
+// ALIQUOTE IVA
+// ==========================================
+
+function saveAliquoteIva(aliquote) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('aliquoteIva', 'readwrite');
+        let completed = 0;
+        
+        aliquote.forEach(item => {
+            const request = store.put(item);
+            request.onsuccess = () => {
+                completed++;
+                if (completed === aliquote.length) resolve(completed);
+            };
+            request.onerror = () => reject(request.error);
+        });
+        
+        if (aliquote.length === 0) resolve(0);
+    });
+}
+
+function getAliquotaByCode(codice) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('aliquoteIva', 'readonly');
+        const request = store.get(codice);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getAllAliquoteIva() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('aliquoteIva', 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ==========================================
+// PAGAMENTI
+// ==========================================
+
+function savePagamenti(pagamenti) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('pagamenti', 'readwrite');
+        let completed = 0;
+        
+        pagamenti.forEach(item => {
+            const request = store.put(item);
+            request.onsuccess = () => {
+                completed++;
+                if (completed === pagamenti.length) resolve(completed);
+            };
+            request.onerror = () => reject(request.error);
+        });
+        
+        if (pagamenti.length === 0) resolve(0);
+    });
+}
+
+function getPagamentoByCode(codice) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('pagamenti', 'readonly');
+        const request = store.get(codice);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getAllPagamenti() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('pagamenti', 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ==========================================
 // EXPORT MODULO
 // ==========================================
 
@@ -463,6 +555,16 @@ const DB = {
     searchFornitori,
     getAllFornitori,
     countFornitori: () => countStore('fornitori'),
+    
+    // Aliquote IVA
+    saveAliquoteIva,
+    getAliquotaByCode,
+    getAllAliquoteIva,
+    
+    // Pagamenti
+    savePagamenti,
+    getPagamentoByCode,
+    getAllPagamenti,
     
     // Code
     addToQueue,

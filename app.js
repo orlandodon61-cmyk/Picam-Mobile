@@ -141,11 +141,23 @@ APP.login = function() {
 
 APP.getUserInfo = async function() {
     try {
+        // Piccola attesa per dare tempo al token di propagarsi
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: { 'Authorization': `Bearer ${APP.accessToken}` }
         });
         
+        if (!response.ok) {
+            throw new Error(`Errore API: ${response.status}`);
+        }
+        
         const data = await response.json();
+        
+        if (!data.email) {
+            throw new Error('Email non trovata nella risposta');
+        }
+        
         APP.userEmail = data.email;
         localStorage.setItem('picam_user_email', APP.userEmail);
         
@@ -176,8 +188,34 @@ APP.getUserInfo = async function() {
         
     } catch (error) {
         console.error('Errore getUserInfo:', error);
-        document.getElementById('login-status').className = 'status-message error';
-        document.getElementById('login-status').textContent = 'Errore nel recupero info utente';
+        
+        // Usa email salvata se disponibile
+        const savedEmail = localStorage.getItem('picam_user_email');
+        if (savedEmail) {
+            APP.userEmail = savedEmail;
+            document.getElementById('login-status').className = 'status-message success';
+            document.getElementById('login-status').textContent = `Connesso come ${APP.userEmail}`;
+            
+            document.getElementById('step-login').classList.add('completed');
+            document.getElementById('step-config').classList.remove('disabled');
+            document.getElementById('step-load').classList.remove('disabled');
+            
+            // Verifica dati esistenti
+            try {
+                await DB.init();
+                const stats = await DB.getStats();
+                if (stats.articoli > 0) {
+                    document.getElementById('btn-skip-load').classList.remove('hidden');
+                    document.getElementById('load-status').textContent = `${stats.articoli} articoli già caricati`;
+                    document.getElementById('load-status').className = 'status-message success';
+                }
+            } catch (e) {
+                console.log('DB non inizializzato');
+            }
+        } else {
+            document.getElementById('login-status').className = 'status-message error';
+            document.getElementById('login-status').textContent = 'Errore nel recupero info utente';
+        }
     }
 };
 
@@ -305,13 +343,37 @@ APP.loadAllData = async function() {
         
         // Carica forcom.xlsx (fornitori)
         progressText.textContent = 'Caricamento fornitori...';
-        progressFill.style.width = '85%';
+        progressFill.style.width = '80%';
         try {
             const fornitoriRaw = await APP.loadExcelFile(folderId, 'forcom.xlsx');
             const fornitori = APP.mapFornitori(fornitoriRaw);
             await DB.saveFornitori(fornitori);
         } catch (e) {
             console.warn('forcom.xlsx non trovato, continuo senza fornitori');
+        }
+        
+        // Carica iva.xlsx (aliquote IVA)
+        progressText.textContent = 'Caricamento aliquote IVA...';
+        progressFill.style.width = '85%';
+        try {
+            const ivaRaw = await APP.loadExcelFile(folderId, 'iva.xlsx');
+            const aliquote = APP.mapAliquoteIva(ivaRaw);
+            await DB.saveAliquoteIva(aliquote);
+            console.log(`Caricate ${aliquote.length} aliquote IVA`);
+        } catch (e) {
+            console.warn('iva.xlsx non trovato, uso aliquote default');
+        }
+        
+        // Carica pagame.xlsx (modalità pagamento)
+        progressText.textContent = 'Caricamento pagamenti...';
+        progressFill.style.width = '90%';
+        try {
+            const pagRaw = await APP.loadExcelFile(folderId, 'pagame.xlsx');
+            const pagamenti = APP.mapPagamenti(pagRaw);
+            await DB.savePagamenti(pagamenti);
+            console.log(`Caricati ${pagamenti.length} tipi di pagamento`);
+        } catch (e) {
+            console.warn('pagame.xlsx non trovato, continuo senza pagamenti');
         }
         
         // Carica code salvate
@@ -447,8 +509,10 @@ APP.mergeArticoli = function(articoli, codbar, artdep) {
         const prezzo = parseFloat(art.art_pre_ven || art.ART_PRE_VEN || 0) || 0;
         const prezzoVendita = parseFloat(art.art_prz_ult_ven || art.ART_PRZ_ULT_VEN || 0) || 0;
         const prezzoAcquisto = parseFloat(art.art_prz_ult_acq || art.ART_PRZ_ULT_ACQ || 0) || 0;
-        const codIva = (art.art_cod_iva || art.ART_COD_IVA || '22').toString().trim();
-        const aliquotaIva = parseFloat(codIva) || 22;
+        
+        // Codici IVA separati per vendita e acquisto
+        const codIvaVendita = (art.art_cod_iva_ven || art.ART_COD_IVA_VEN || art.art_cod_iva || art.ART_COD_IVA || '22').toString().trim();
+        const codIvaAcquisto = (art.art_cod_iva_acq || art.ART_COD_IVA_ACQ || art.art_cod_iva || art.ART_COD_IVA || '22').toString().trim();
         
         const barcode = codbarMap.get(codice) || '';
         const depInfo = artdepMap.get(codice) || { giacenza: 0, locazione: '' };
@@ -462,8 +526,8 @@ APP.mergeArticoli = function(articoli, codbar, artdep) {
             prezzo,
             prezzoVendita,
             prezzoAcquisto,
-            codIva,
-            aliquotaIva,
+            codIvaVendita,     // Per ordini clienti
+            codIvaAcquisto,    // Per ordini fornitori
             barcode,
             giacenza: depInfo.giacenza,
             locazione: depInfo.locazione
@@ -501,6 +565,54 @@ APP.mapFornitori = function(fornitoriRaw) {
         partitaIva: (forn.foc_par_iva || forn.FOC_PAR_IVA || '').toString().trim(),
         codPag: (forn.foc_cod_pag || forn.FOC_COD_PAG || '').toString().trim()
     }));
+};
+
+// Mappa aliquote IVA da iva.xlsx
+APP.mapAliquoteIva = function(ivaRaw) {
+    return ivaRaw.map(iva => ({
+        codice: (iva.iva_cod || iva.IVA_COD || '').toString().trim(),
+        aliquota: parseFloat(iva.iva_ali || iva.IVA_ALI || 0) || 0,
+        descrizione: (iva.iva_des_sin || iva.IVA_DES_SIN || '').toString().trim()
+    })).filter(iva => iva.codice); // Filtra righe vuote
+};
+
+// Mappa pagamenti da pagame.xlsx
+APP.mapPagamenti = function(pagRaw) {
+    return pagRaw.map(pag => ({
+        codice: (pag.pag_cod || pag.PAG_COD || '').toString().trim(),
+        descrizione: (pag.pag_des || pag.PAG_DES || '').toString().trim()
+    })).filter(pag => pag.codice); // Filtra righe vuote
+};
+
+// Cache aliquote IVA per lookup veloce
+APP.aliquoteIvaCache = new Map();
+
+// Ottiene aliquota IVA reale dal codice
+APP.getAliquotaIva = async function(codIva) {
+    // Prima controlla la cache
+    if (APP.aliquoteIvaCache.has(codIva)) {
+        return APP.aliquoteIvaCache.get(codIva);
+    }
+    
+    // Cerca nel DB
+    try {
+        const iva = await DB.getAliquotaByCode(codIva);
+        if (iva) {
+            APP.aliquoteIvaCache.set(codIva, iva.aliquota);
+            return iva.aliquota;
+        }
+    } catch (e) {
+        console.warn('Errore lookup IVA:', e);
+    }
+    
+    // Fallback: se il codice è numerico, usalo come aliquota
+    const numerico = parseFloat(codIva);
+    if (!isNaN(numerico)) {
+        return numerico;
+    }
+    
+    // Default 22%
+    return 22;
 };
 
 APP.loadSavedQueues = async function() {
@@ -593,8 +705,35 @@ APP.openOrdiniFornitori = async function() {
     // Reset ordine corrente
     APP.currentOrdineFornitori.fornitore = null;
     APP.currentOrdineFornitori.righe = [];
+    APP.currentOrdineFornitori.pagamento = null;
     APP.renderSelectedFornitore();
     APP.renderRigheOrdineFornitori();
+    
+    // Carica pagamenti nel dropdown
+    await APP.loadPagamentiDropdown();
+};
+
+// Carica pagamenti nel dropdown
+APP.loadPagamentiDropdown = async function() {
+    const select = document.getElementById('ord-for-pagamento');
+    if (!select) return;
+    
+    // Svuota e aggiungi opzione default
+    select.innerHTML = '<option value="">-- Seleziona pagamento --</option>';
+    
+    try {
+        const pagamenti = await DB.getAllPagamenti();
+        pagamenti.forEach(pag => {
+            const option = document.createElement('option');
+            option.value = pag.codice;
+            option.textContent = `${pag.codice} - ${pag.descrizione}`;
+            option.dataset.descrizione = pag.descrizione;
+            select.appendChild(option);
+        });
+        console.log(`Caricati ${pagamenti.length} tipi di pagamento`);
+    } catch (e) {
+        console.warn('Errore caricamento pagamenti:', e);
+    }
 };
 
 // ==========================================
@@ -1358,7 +1497,7 @@ APP.addRigaOrdineCliente = function(articolo, qty) {
             des2: articolo.des2,
             um: articolo.um,
             prezzo: articolo.prezzoVendita || articolo.prezzo || 0,
-            aliquotaIva: articolo.aliquotaIva || 22,
+            codIvaVendita: articolo.codIvaVendita || '22', // Codice IVA per vendite
             giacenza: articolo.giacenza || 0,
             qty: qty
         });
@@ -1444,7 +1583,7 @@ APP.addRigaOrdineFornitore = function(articolo, qty, prezzoInserito = null) {
             des2: articolo.des2,
             um: articolo.um,
             prezzo: prezzo,
-            aliquotaIva: articolo.aliquotaIva || 22,
+            codIvaAcquisto: articolo.codIvaAcquisto || '22', // Codice IVA per acquisti
             giacenza: articolo.giacenza || 0,
             qty: qty
         });
@@ -1560,6 +1699,13 @@ APP.confermaOrdineFornitore = async function() {
         return;
     }
     
+    // Ottieni pagamento selezionato
+    const pagamentoSelect = document.getElementById('ord-for-pagamento');
+    const codPagamento = pagamentoSelect ? pagamentoSelect.value : '';
+    const desPagamento = pagamentoSelect && pagamentoSelect.selectedOptions[0] 
+        ? pagamentoSelect.selectedOptions[0].dataset.descrizione || '' 
+        : '';
+    
     // Prepara ordine per la coda
     const ordineCompleto = {
         tipo: 'fornitore',
@@ -1568,6 +1714,10 @@ APP.confermaOrdineFornitore = async function() {
         data: new Date().toISOString(),
         fornitore: { ...ordine.fornitore },
         righe: [ ...ordine.righe ],
+        pagamento: {
+            codice: codPagamento,
+            descrizione: desPagamento
+        },
         timestamp: Date.now()
     };
     
@@ -1581,6 +1731,9 @@ APP.confermaOrdineFornitore = async function() {
     // Reset ordine corrente
     APP.currentOrdineFornitori.fornitore = null;
     APP.currentOrdineFornitori.righe = [];
+    
+    // Reset dropdown pagamento
+    if (pagamentoSelect) pagamentoSelect.value = '';
     
     // Aggiorna UI
     APP.renderSelectedFornitore();
@@ -2014,7 +2167,7 @@ APP.syncOrdiniClienti = async function() {
     
     const clientiProcessati = new Set();
     
-    queue.forEach(ordine => {
+    for (const ordine of queue) {
         const cli = ordine.cliente;
         const dataOrd = APP.formatDatePicam(new Date(ordine.data));
         
@@ -2028,11 +2181,15 @@ APP.syncOrdiniClienti = async function() {
         testate += `S|${cli.codPag || ''}|${dataOrd}|${dataOrd}|||"OCL"||||||"${ordine.registro}"|${ordine.numero}|${cli.codice}||||||\n`;
         
         // Dettagli
-        ordine.righe.forEach(riga => {
+        for (const riga of ordine.righe) {
+            // Ottieni aliquota IVA reale dal codice
+            const codIva = riga.codIvaVendita || '22';
+            const aliquotaIva = await APP.getAliquotaIva(codIva);
+            
             const impNetto = APP.formatDecimal(riga.qty * riga.prezzo);
-            dettagli += `${cli.codice}|"${riga.des1}"|"${riga.des2 || ''}"|"${riga.um}"|${riga.qty}|${impNetto}||"${ordine.registro}"|${ordine.numero}|${dataOrd}|"22"|\n`;
-        });
-    });
+            dettagli += `${cli.codice}|"${riga.des1}"|"${riga.des2 || ''}"|"${riga.um}"|${riga.qty}|${impNetto}||"${ordine.registro}"|${ordine.numero}|${dataOrd}|"${aliquotaIva}"|\n`;
+        }
+    }
     
     // Upload files
     await APP.uploadFile(folderId, 'ordini-anagrafiche', new TextEncoder().encode(anagrafiche), 'text/plain');
@@ -2063,9 +2220,10 @@ APP.syncOrdiniFornitori = async function() {
     
     const fornitoriProcessati = new Set();
     
-    queue.forEach(ordine => {
+    for (const ordine of queue) {
         const forn = ordine.fornitore;
         const dataOrd = APP.formatDatePicam(new Date(ordine.data));
+        const codPag = ordine.pagamento?.codice || forn.codPag || '';
         
         // Anagrafica (solo se non già processato)
         if (!fornitoriProcessati.has(forn.codice)) {
@@ -2074,14 +2232,18 @@ APP.syncOrdiniFornitori = async function() {
         }
         
         // Testata
-        testate += `S|${forn.codPag || ''}|${dataOrd}|${dataOrd}|||"OFO"||||||"${ordine.registro}"|${ordine.numero}|${forn.codice}|\n`;
+        testate += `S|${codPag}|${dataOrd}|${dataOrd}|||"OFO"||||||"${ordine.registro}"|${ordine.numero}|${forn.codice}|\n`;
         
         // Dettagli
-        ordine.righe.forEach(riga => {
+        for (const riga of ordine.righe) {
+            // Ottieni aliquota IVA reale dal codice
+            const codIva = riga.codIvaAcquisto || '22';
+            const aliquotaIva = await APP.getAliquotaIva(codIva);
+            
             const impNetto = APP.formatDecimal(riga.qty * riga.prezzo);
-            dettagli += `${forn.codice}|"${riga.des1}"|"${riga.des2 || ''}"|"${riga.um}"|${riga.qty}|${impNetto}||"${ordine.registro}"|${ordine.numero}|${dataOrd}|"22"|\n`;
-        });
-    });
+            dettagli += `${forn.codice}|"${riga.des1}"|"${riga.des2 || ''}"|"${riga.um}"|${riga.qty}|${impNetto}||"${ordine.registro}"|${ordine.numero}|${dataOrd}|"${aliquotaIva}"|\n`;
+        }
+    }
     
     // Upload files
     await APP.uploadFile(folderId, 'ordfornitori-anagrafica', new TextEncoder().encode(anagrafiche), 'text/plain');
@@ -2392,6 +2554,10 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     const dataOrdine = APP.formatDate(new Date(ordine.data));
     const dataOrdineTratto = dataOrdine.replace(/\//g, '-');
     
+    // Dati pagamento
+    const codPagamento = ordine.pagamento?.codice || forn.codPag || '';
+    const desPagamento = ordine.pagamento?.descrizione || '';
+    
     // ========== HEADER ==========
     
     // Logo in alto a sinistra (se presente)
@@ -2405,9 +2571,9 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
         }
     }
     
-    // Box intestatario fornitore (alto a destra)
+    // Box intestatario fornitore (alto a destra) - LINEA SOTTILE
     doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
+    doc.setLineWidth(0.2);
     doc.rect(115, 8, 85, 35);
     
     doc.setFontSize(8);
@@ -2431,7 +2597,8 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     
     let y = 58;
     
-    // Header riga info
+    // Header riga info - LINEA SOTTILE
+    doc.setLineWidth(0.2);
     doc.setFillColor(240, 240, 240);
     doc.rect(10, y, 190, 7, 'F');
     doc.setDrawColor(0);
@@ -2448,15 +2615,15 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     doc.text('DATA', 160, y + 5);
     doc.text('N. PAG.', 185, y + 5);
     
-    // Valori riga info
+    // Valori riga info - LINEA SOTTILE
     y += 7;
     doc.rect(10, y, 190, 7);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(8);
     doc.text(forn.codice || '', 12, y + 5);
     doc.text(forn.partitaIva || '', 35, y + 5);
-    doc.text('', 72, y + 5); // Codice pagamento
-    doc.text('', 85, y + 5); // Descrizione pagamento
+    doc.text(codPagamento, 72, y + 5);
+    doc.text(desPagamento.substring(0, 28), 85, y + 5); // Tronca se troppo lungo
     doc.text('SI', 127, y + 5);
     doc.text(`${ordine.registro}/${ordine.numero}`, 140, y + 5);
     doc.text(dataOrdine, 160, y + 5);
@@ -2466,7 +2633,7 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     
     y += 12;
     
-    // Header tabella articoli
+    // Header tabella articoli - LINEA SOTTILE
     doc.setFillColor(240, 240, 240);
     doc.rect(10, y, 190, 7, 'F');
     doc.rect(10, y, 190, 7);
@@ -2496,11 +2663,13 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
             y = 20;
         }
         
-        // Linea separatrice
-        doc.setDrawColor(200, 200, 200);
+        // Linea separatrice SOTTILE
+        doc.setDrawColor(180, 180, 180);
+        doc.setLineWidth(0.1);
         doc.line(10, y + 5, 200, y + 5);
         
         doc.setDrawColor(0);
+        doc.setLineWidth(0.2);
         doc.text(riga.codice.substring(0, 18), 12, y + 4);
         doc.text(riga.des1.substring(0, 35), 50, y + 4);
         
@@ -2525,8 +2694,9 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     // Posiziona footer in basso
     y = 250;
     
-    // Riga totale merce
+    // Riga totale merce - LINEA SOTTILE
     doc.setDrawColor(0);
+    doc.setLineWidth(0.2);
     doc.rect(10, y, 190, 12);
     
     doc.setFontSize(7);
@@ -2543,7 +2713,7 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
         doc.text(totaleMerce.toFixed(2).replace('.', ','), 12, y + 10);
     }
     
-    // Riga vettore
+    // Riga vettore - LINEA SOTTILE
     y += 12;
     doc.rect(10, y, 140, 10);
     doc.rect(150, y, 50, 10);
@@ -2553,14 +2723,14 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     doc.text('VETTORE', 12, y + 4);
     doc.text('Tel.', 152, y + 8);
     
-    // Riga destinazione
+    // Riga destinazione - LINEA SOTTILE
     y += 10;
     doc.rect(10, y, 190, 12);
     doc.setFontSize(7);
     doc.setFont(undefined, 'bold');
     doc.text('DESTINAZIONE MERCE', 12, y + 5);
     
-    // Riga note
+    // Riga note - LINEA SOTTILE
     y += 12;
     doc.rect(10, y, 190, 12);
     doc.setFontSize(7);
@@ -2726,7 +2896,7 @@ APP.vibrate = function(duration = 50) {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('Picam v3.4 - Inizializzazione...');
+    console.log('Picam v3.5 - Inizializzazione...');
     
     // Carica configurazione salvata
     const savedConfig = localStorage.getItem('picam_config');
