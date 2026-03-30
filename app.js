@@ -209,17 +209,53 @@ APP.getUserInfo = async function() {
     }
     
     // SEMPRE verifica se ci sono dati esistenti per il pulsante "Salta"
+    APP.checkSkipButton();
+};
+
+// Funzione separata per controllo pulsante Skip (può essere chiamata anche dopo)
+APP.checkSkipButton = async function() {
+    const btnSkip = document.getElementById('btn-skip-load');
+    const loadStatus = document.getElementById('load-status');
+    
+    if (!btnSkip) {
+        console.warn('checkSkipButton - elemento btn-skip-load non trovato');
+        return;
+    }
+    
+    console.log('checkSkipButton - inizio controllo...');
+    
+    // Prima prova il localStorage (più veloce)
+    const savedCount = localStorage.getItem('picam_articoli_count');
+    if (savedCount && parseInt(savedCount) > 0) {
+        console.log('checkSkipButton - localStorage:', savedCount);
+        btnSkip.classList.remove('hidden');
+        btnSkip.style.display = 'flex'; // Forza visibilità
+        loadStatus.textContent = `~${savedCount} articoli già caricati`;
+        loadStatus.className = 'status-message success';
+    }
+    
+    // Poi verifica il DB per conferma
     try {
         await DB.init();
         const stats = await DB.getStats();
-        console.log('DB stats:', stats);
+        console.log('checkSkipButton - DB stats:', stats);
+        
         if (stats.articoli > 0) {
-            document.getElementById('btn-skip-load').classList.remove('hidden');
-            document.getElementById('load-status').textContent = `${stats.articoli} articoli già caricati`;
-            document.getElementById('load-status').className = 'status-message success';
+            btnSkip.classList.remove('hidden');
+            btnSkip.style.display = 'flex'; // Forza visibilità
+            loadStatus.textContent = `${stats.articoli} articoli già caricati`;
+            loadStatus.className = 'status-message success';
+            // Aggiorna localStorage
+            localStorage.setItem('picam_articoli_count', stats.articoli.toString());
+        } else if (!savedCount || parseInt(savedCount) === 0) {
+            // Nessun dato trovato - nascondi pulsante e mostra info
+            btnSkip.classList.add('hidden');
+            btnSkip.style.display = 'none';
+            // Non mostrare nulla, il caricamento è necessario
         }
     } catch (e) {
-        console.log('DB non inizializzato, skip non disponibile:', e.message);
+        console.warn('checkSkipButton - errore DB:', e.message);
+        // Se c'è errore DB ma abbiamo localStorage, lascia il pulsante visibile
     }
 };
 
@@ -392,6 +428,9 @@ APP.loadAllData = async function() {
         statusEl.className = 'status-message success';
         const stats = await DB.getStats();
         statusEl.textContent = `Caricati ${stats.articoli} articoli, ${stats.clienti} clienti, ${stats.fornitori} fornitori`;
+        
+        // Salva count per pulsante skip futuro
+        localStorage.setItem('picam_articoli_count', stats.articoli.toString());
         
         // Vai al menu dopo 1 secondo
         setTimeout(() => {
@@ -1851,6 +1890,9 @@ APP.openQueueModal = async function(context) {
     
     // Render azioni
     actionsEl.innerHTML = `
+        <div class="queue-action-hint">
+            👆 Tocca un ordine qui sopra per stamparlo o condividerlo
+        </div>
         <button class="btn-primary" onclick="APP.syncQueue('${context}')">
             ☁️ Sincronizza su Drive
         </button>
@@ -1862,7 +1904,6 @@ APP.openQueueModal = async function(context) {
                 🗑️ Svuota
             </button>
         </div>
-        <p class="queue-hint">Tocca un elemento per modificare/stampare</p>
     `;
     
     modal.classList.remove('hidden');
@@ -3025,6 +3066,9 @@ APP.initWithAuth = async function() {
         console.error('Errore init DB:', e);
         APP.showScreen('setup');
     }
+    
+    // Controlla sempre se ci sono dati per il pulsante skip
+    setTimeout(() => APP.checkSkipButton(), 500);
 };
 
 // Registra Service Worker
