@@ -38,8 +38,8 @@
          SCREEN: SETUP / LOGIN
          ========================================== -->
     <div id="screen-setup" class="screen active">
-        <div class="setup-container">
-            <div class="logo-section">
+        <div class="setup-container compact">
+            <div class="logo-section compact">
                 <div class="logo-icon">📦</div>
                 <h1 class="logo-title">PICAM</h1>
                 <p class="logo-subtitle">Inventario & Ordini v3.5</p>
@@ -51,9 +51,6 @@
                     <span class="step-number">1</span>
                     <span class="step-title">Accesso Google</span>
                 </div>
-                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
-                    Accedi con il tuo account Google per sincronizzare i dati con Drive.
-                </p>
                 <button class="btn-primary" id="btn-login" onclick="APP.login()">
                     <span>🔐</span>
                     <span>Accedi con Google</span>
@@ -61,37 +58,50 @@
                 <div id="login-status" class="status-message"></div>
             </div>
 
-            <!-- Step 2: Configurazione -->
+            <!-- Step 2: Configurazione (compatto) -->
             <div class="setup-step disabled" id="step-config">
                 <div class="step-header">
                     <span class="step-number">2</span>
                     <span class="step-title">Configurazione</span>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="config-row">
                     <div class="ordine-field">
-                        <label>Cartella Google Drive</label>
-                        <input type="text" id="config-folder" placeholder="es: archivi/Ordini" value="archivi/Ordini">
+                        <label>Cartella Drive</label>
+                        <input type="text" id="config-folder" placeholder="archivi/Ordini" value="archivi/Ordini">
                     </div>
-                    <div class="ordine-field">
-                        <label>Codice Deposito</label>
-                        <input type="text" id="config-deposito" placeholder="es: 01" value="01">
+                    <div class="ordine-field" style="width: 100px;">
+                        <label>Deposito</label>
+                        <input type="text" id="config-deposito" placeholder="01" value="01" style="text-align: center;">
                     </div>
                 </div>
             </div>
 
-            <!-- Step 3: Caricamento Dati -->
+            <!-- Step 3: Avvia (con opzioni) -->
             <div class="setup-step disabled" id="step-load">
                 <div class="step-header">
                     <span class="step-number">3</span>
-                    <span class="step-title">Caricamento Dati</span>
+                    <span class="step-title">Avvia</span>
                 </div>
-                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
-                    Carica i dati da Google Drive per iniziare.
-                </p>
+                
+                <!-- Opzione A: Carica nuovi dati -->
                 <button class="btn-primary" id="btn-load-data" onclick="APP.loadAllData()">
                     <span>☁️</span>
                     <span>Carica Dati da Drive</span>
                 </button>
+                
+                <!-- Opzione B: Usa dati esistenti (visibile solo se ci sono) -->
+                <div id="skip-option" class="skip-option" style="display: none;">
+                    <div class="skip-divider">
+                        <span>oppure</span>
+                    </div>
+                    <button class="btn-skip-inline" id="btn-skip-load" onclick="APP.skipLoadData()">
+                        <span>⏩</span>
+                        <span>Usa dati già caricati</span>
+                        <span class="skip-count" id="skip-count"></span>
+                    </button>
+                </div>
+                
+                <!-- Progress e Status -->
                 <div class="progress-container hidden" id="load-progress">
                     <div class="progress-bar">
                         <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
@@ -99,22 +109,6 @@
                     <p class="progress-text" id="progress-text">Caricamento...</p>
                 </div>
                 <div id="load-status" class="status-message"></div>
-            </div>
-            
-            <!-- STEP 4: Usa dati esistenti -->
-            <div class="setup-card" id="step-skip" style="display: none;">
-                <div class="step-header">
-                    <span class="step-number" style="background: #FF9800;">4</span>
-                    <span class="step-title">Oppure usa dati esistenti</span>
-                </div>
-                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
-                    Hai già dei dati caricati. Puoi continuare senza ricaricare.
-                </p>
-                <div id="skip-status" class="status-message success" style="margin-bottom: 12px;"></div>
-                <button class="btn-skip-prominent" id="btn-skip-load" onclick="APP.skipLoadData()">
-                    <span>⏩</span>
-                    <span>Usa dati già caricati</span>
-                </button>
             </div>
         </div>
     </div>

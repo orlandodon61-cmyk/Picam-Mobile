@@ -214,11 +214,11 @@ APP.getUserInfo = async function() {
 
 // Funzione separata per controllo pulsante Skip (può essere chiamata anche dopo)
 APP.checkSkipButton = async function() {
-    const stepSkip = document.getElementById('step-skip');
-    const skipStatus = document.getElementById('skip-status');
+    const skipOption = document.getElementById('skip-option');
+    const skipCount = document.getElementById('skip-count');
     
-    if (!stepSkip) {
-        console.warn('checkSkipButton - elemento step-skip non trovato');
+    if (!skipOption) {
+        console.warn('checkSkipButton - elemento skip-option non trovato');
         return;
     }
     
@@ -248,14 +248,14 @@ APP.checkSkipButton = async function() {
         console.warn('checkSkipButton - errore DB:', e.message);
     }
     
-    // Mostra o nascondi lo step 4
+    // Mostra o nascondi l'opzione skip
     if (articoliCount > 0) {
-        stepSkip.style.display = 'block';
-        skipStatus.textContent = `${articoliCount} articoli già caricati nel dispositivo`;
-        console.log('checkSkipButton - step 4 visibile, articoli:', articoliCount);
+        skipOption.style.display = 'block';
+        skipCount.textContent = `${articoliCount} articoli`;
+        console.log('checkSkipButton - opzione skip visibile, articoli:', articoliCount);
     } else {
-        stepSkip.style.display = 'none';
-        console.log('checkSkipButton - step 4 nascosto, nessun articolo');
+        skipOption.style.display = 'none';
+        console.log('checkSkipButton - opzione skip nascosta, nessun articolo');
     }
 };
 
