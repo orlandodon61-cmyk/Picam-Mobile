@@ -67,43 +67,27 @@
                     <span class="step-title">Configurazione</span>
                 </div>
                 <div class="config-row">
-                    <div class="ordine-field">
+                    <div class="ordine-field config-field-folder">
                         <label>Cartella Drive</label>
                         <input type="text" id="config-folder" placeholder="archivi/Ordini" value="archivi/Ordini">
                     </div>
-                    <div class="ordine-field" style="width: 100px;">
+                    <div class="ordine-field config-field-deposito">
                         <label>Deposito</label>
-                        <input type="text" id="config-deposito" placeholder="01" value="01" style="text-align: center;">
+                        <input type="text" id="config-deposito" placeholder="01" value="01">
                     </div>
                 </div>
             </div>
 
-            <!-- Step 3: Avvia (con opzioni) -->
+            <!-- Step 3: Avvia -->
             <div class="setup-step disabled" id="step-load">
                 <div class="step-header">
                     <span class="step-number">3</span>
                     <span class="step-title">Avvia</span>
                 </div>
-                
-                <!-- Opzione A: Carica nuovi dati -->
                 <button class="btn-primary" id="btn-load-data" onclick="APP.loadAllData()">
                     <span>☁️</span>
                     <span>Carica Dati da Drive</span>
                 </button>
-                
-                <!-- Opzione B: Usa dati esistenti (visibile solo se ci sono) -->
-                <div id="skip-option" class="skip-option" style="display: none;">
-                    <div class="skip-divider">
-                        <span>oppure</span>
-                    </div>
-                    <button class="btn-skip-inline" id="btn-skip-load" onclick="APP.skipLoadData()">
-                        <span>⏩</span>
-                        <span>Usa dati già caricati</span>
-                        <span class="skip-count" id="skip-count"></span>
-                    </button>
-                </div>
-                
-                <!-- Progress e Status -->
                 <div class="progress-container hidden" id="load-progress">
                     <div class="progress-bar">
                         <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
@@ -111,6 +95,15 @@
                     <p class="progress-text" id="progress-text">Caricamento...</p>
                 </div>
                 <div id="load-status" class="status-message"></div>
+            </div>
+            
+            <!-- Opzione rapida: Usa dati esistenti (FUORI dagli step, sempre cliccabile) -->
+            <div id="skip-option" class="skip-option-card" style="display: none;">
+                <button class="btn-skip-full" id="btn-skip-load" onclick="APP.skipLoadData()">
+                    <span class="skip-icon">⏩</span>
+                    <span class="skip-text">Usa dati già caricati</span>
+                    <span class="skip-count" id="skip-count"></span>
+                </button>
             </div>
         </div>
     </div>
