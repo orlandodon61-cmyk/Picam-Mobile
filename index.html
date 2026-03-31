@@ -92,10 +92,6 @@
                     <span>☁️</span>
                     <span>Carica Dati da Drive</span>
                 </button>
-                <button class="btn-secondary hidden" id="btn-skip-load" onclick="APP.skipLoadData()" style="margin-top: 10px;">
-                    <span>⏩</span>
-                    <span>Usa dati già caricati</span>
-                </button>
                 <div class="progress-container hidden" id="load-progress">
                     <div class="progress-bar">
                         <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
@@ -103,6 +99,22 @@
                     <p class="progress-text" id="progress-text">Caricamento...</p>
                 </div>
                 <div id="load-status" class="status-message"></div>
+            </div>
+            
+            <!-- STEP 4: Usa dati esistenti -->
+            <div class="setup-card" id="step-skip" style="display: none;">
+                <div class="step-header">
+                    <span class="step-number" style="background: #FF9800;">4</span>
+                    <span class="step-title">Oppure usa dati esistenti</span>
+                </div>
+                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Hai già dei dati caricati. Puoi continuare senza ricaricare.
+                </p>
+                <div id="skip-status" class="status-message success" style="margin-bottom: 12px;"></div>
+                <button class="btn-skip-prominent" id="btn-skip-load" onclick="APP.skipLoadData()">
+                    <span>⏩</span>
+                    <span>Usa dati già caricati</span>
+                </button>
             </div>
         </div>
     </div>

@@ -214,24 +214,23 @@ APP.getUserInfo = async function() {
 
 // Funzione separata per controllo pulsante Skip (può essere chiamata anche dopo)
 APP.checkSkipButton = async function() {
-    const btnSkip = document.getElementById('btn-skip-load');
-    const loadStatus = document.getElementById('load-status');
+    const stepSkip = document.getElementById('step-skip');
+    const skipStatus = document.getElementById('skip-status');
     
-    if (!btnSkip) {
-        console.warn('checkSkipButton - elemento btn-skip-load non trovato');
+    if (!stepSkip) {
+        console.warn('checkSkipButton - elemento step-skip non trovato');
         return;
     }
     
     console.log('checkSkipButton - inizio controllo...');
     
+    let articoliCount = 0;
+    
     // Prima prova il localStorage (più veloce)
     const savedCount = localStorage.getItem('picam_articoli_count');
     if (savedCount && parseInt(savedCount) > 0) {
-        console.log('checkSkipButton - localStorage:', savedCount);
-        btnSkip.classList.remove('hidden');
-        btnSkip.style.display = 'flex'; // Forza visibilità
-        loadStatus.textContent = `~${savedCount} articoli già caricati`;
-        loadStatus.className = 'status-message success';
+        articoliCount = parseInt(savedCount);
+        console.log('checkSkipButton - localStorage:', articoliCount);
     }
     
     // Poi verifica il DB per conferma
@@ -241,21 +240,22 @@ APP.checkSkipButton = async function() {
         console.log('checkSkipButton - DB stats:', stats);
         
         if (stats.articoli > 0) {
-            btnSkip.classList.remove('hidden');
-            btnSkip.style.display = 'flex'; // Forza visibilità
-            loadStatus.textContent = `${stats.articoli} articoli già caricati`;
-            loadStatus.className = 'status-message success';
+            articoliCount = stats.articoli;
             // Aggiorna localStorage
             localStorage.setItem('picam_articoli_count', stats.articoli.toString());
-        } else if (!savedCount || parseInt(savedCount) === 0) {
-            // Nessun dato trovato - nascondi pulsante e mostra info
-            btnSkip.classList.add('hidden');
-            btnSkip.style.display = 'none';
-            // Non mostrare nulla, il caricamento è necessario
         }
     } catch (e) {
         console.warn('checkSkipButton - errore DB:', e.message);
-        // Se c'è errore DB ma abbiamo localStorage, lascia il pulsante visibile
+    }
+    
+    // Mostra o nascondi lo step 4
+    if (articoliCount > 0) {
+        stepSkip.style.display = 'block';
+        skipStatus.textContent = `${articoliCount} articoli già caricati nel dispositivo`;
+        console.log('checkSkipButton - step 4 visibile, articoli:', articoliCount);
+    } else {
+        stepSkip.style.display = 'none';
+        console.log('checkSkipButton - step 4 nascosto, nessun articolo');
     }
 };
 
@@ -1716,7 +1716,11 @@ APP.updateBtnConfermaOrdFor = function() {
     const hasFornitore = APP.currentOrdineFornitori.fornitore !== null;
     const hasRighe = APP.currentOrdineFornitori.righe.length > 0;
     
-    btn.disabled = !(hasFornitore && hasRighe);
+    console.log('updateBtnConfermaOrdFor:', { hasFornitore, hasRighe, fornitore: APP.currentOrdineFornitori.fornitore, righeCount: APP.currentOrdineFornitori.righe.length });
+    
+    if (btn) {
+        btn.disabled = !(hasFornitore && hasRighe);
+    }
 };
 
 // ==========================================
