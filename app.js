@@ -3036,10 +3036,14 @@ document.addEventListener('DOMContentLoaded', async function() {
                 document.getElementById('login-status').className = 'status-message';
                 document.getElementById('login-status').textContent = `Tocca per accedere come ${savedEmail}`;
                 APP.showScreen('setup');
+                // Controlla se ci sono dati per il pulsante skip
+                APP.checkSkipButton();
             }
         } else {
             // Nessun account salvato
             APP.showScreen('setup');
+            // Controlla se ci sono dati per il pulsante skip
+            APP.checkSkipButton();
         }
     }
 });
@@ -3065,14 +3069,16 @@ APP.initWithAuth = async function() {
             document.getElementById('step-load').classList.remove('disabled');
             document.getElementById('login-status').textContent = `Connesso come ${APP.userEmail}`;
             document.getElementById('login-status').className = 'status-message success';
+            
+            // Controlla subito se ci sono dati per il pulsante skip
+            APP.checkSkipButton();
         }
     } catch (e) {
         console.error('Errore init DB:', e);
         APP.showScreen('setup');
+        // Anche in caso di errore, prova a mostrare skip se ci sono dati in localStorage
+        APP.checkSkipButton();
     }
-    
-    // Controlla sempre se ci sono dati per il pulsante skip
-    setTimeout(() => APP.checkSkipButton(), 500);
 };
 
 // Registra Service Worker
