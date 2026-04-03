@@ -1,9 +1,9 @@
 // ==========================================
-// PICAM v3.4 - Database Module (IndexedDB)
+// PICAM v3.5 - Database Module (IndexedDB)
 // ==========================================
 
 const DB_NAME = 'PicamDB';
-const DB_VERSION = 2; // Incrementato per nuovi store
+const DB_VERSION = 3; // v3: Aggiunto storico ordini
 
 let db = null;
 
@@ -88,6 +88,20 @@ function initDB() {
             if (!database.objectStoreNames.contains('pagamenti')) {
                 const pagStore = database.createObjectStore('pagamenti', { keyPath: 'codice' });
                 pagStore.createIndex('descrizione', 'descrizione', { unique: false });
+            }
+            
+            // Store STORICO ORDINI CLIENTI (v3)
+            if (!database.objectStoreNames.contains('storicoOrdiniClienti')) {
+                const storicoCliStore = database.createObjectStore('storicoOrdiniClienti', { keyPath: 'id', autoIncrement: true });
+                storicoCliStore.createIndex('timestamp', 'timestamp', { unique: false });
+                storicoCliStore.createIndex('clienteCodice', 'cliente.codice', { unique: false });
+            }
+            
+            // Store STORICO ORDINI FORNITORI (v3)
+            if (!database.objectStoreNames.contains('storicoOrdiniFornitori')) {
+                const storicoForStore = database.createObjectStore('storicoOrdiniFornitori', { keyPath: 'id', autoIncrement: true });
+                storicoForStore.createIndex('timestamp', 'timestamp', { unique: false });
+                storicoForStore.createIndex('fornitoreCodice', 'fornitore.codice', { unique: false });
             }
 
             console.log('Schema IndexedDB creato');
@@ -439,13 +453,25 @@ async function getStats() {
     const queueOrdCliCount = await countStore('queueOrdiniClienti');
     const queueOrdForCount = await countStore('queueOrdiniFornitori');
     
+    // Storico ordini (v3)
+    let storicoCliCount = 0;
+    let storicoForCount = 0;
+    try {
+        storicoCliCount = await countStore('storicoOrdiniClienti');
+        storicoForCount = await countStore('storicoOrdiniFornitori');
+    } catch(e) {
+        // Store non ancora creato
+    }
+    
     return {
         articoli: articoliCount,
         clienti: clientiCount,
         fornitori: fornitoriCount,
         queueInventario: queueInvCount,
         queueOrdiniClienti: queueOrdCliCount,
-        queueOrdiniFornitori: queueOrdForCount
+        queueOrdiniFornitori: queueOrdForCount,
+        storicoOrdiniClienti: storicoCliCount,
+        storicoOrdiniFornitori: storicoForCount
     };
 }
 
@@ -530,6 +556,112 @@ function getAllPagamenti() {
 }
 
 // ==========================================
+// STORICO ORDINI (v3)
+// ==========================================
+
+// Aggiunge ordine allo storico
+function addToStorico(storeName, ordine) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readwrite');
+            // Copia ordine aggiungendo timestamp se non presente
+            const ordineStorico = {
+                ...ordine,
+                dataStorico: new Date().toISOString()
+            };
+            const request = store.add(ordineStorico);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+// Ottiene tutto lo storico (ordinato per data desc)
+function getStorico(storeName) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readonly');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                // Ordina per timestamp decrescente (più recenti prima)
+                const result = request.result.sort((a, b) => {
+                    const tA = a.timestamp || 0;
+                    const tB = b.timestamp || 0;
+                    return tB - tA;
+                });
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]); // Store non esiste ancora
+        }
+    });
+}
+
+// Ottiene un singolo ordine dallo storico per ID
+function getStoricoById(storeName, id) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readonly');
+            const request = store.get(id);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+// Svuota lo storico
+function clearStorico(storeName) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readwrite');
+            const request = store.clear();
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+// Cerca nello storico per cliente/fornitore
+function searchStorico(storeName, query) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readonly');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                const queryLower = query.toLowerCase();
+                const results = request.result.filter(ordine => {
+                    // Cerca in cliente o fornitore
+                    const soggetto = ordine.cliente || ordine.fornitore;
+                    if (!soggetto) return false;
+                    
+                    const ragSoc = (soggetto.ragSoc1 || '').toLowerCase();
+                    const codice = (soggetto.codice || '').toLowerCase();
+                    const numero = (ordine.numero || '').toString();
+                    
+                    return ragSoc.includes(queryLower) || 
+                           codice.includes(queryLower) ||
+                           numero.includes(queryLower);
+                });
+                
+                // Ordina per timestamp desc
+                results.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                resolve(results);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+// ==========================================
 // EXPORT MODULO
 // ==========================================
 
@@ -573,6 +705,13 @@ const DB = {
     getQueue,
     clearQueue,
     countStore,  // Espongo la funzione generica countStore
+    
+    // Storico Ordini (v3)
+    addToStorico,
+    getStorico,
+    getStoricoById,
+    clearStorico,
+    searchStorico,
     
     // Metadata
     setMetadata,

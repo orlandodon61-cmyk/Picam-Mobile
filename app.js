@@ -1749,6 +1749,13 @@ APP.confermaOrdineCliente = async function() {
     // Salva nella coda
     await DB.addToQueue('queueOrdiniClienti', ordineCompleto);
     
+    // Salva anche nello storico
+    try {
+        await DB.addToStorico('storicoOrdiniClienti', ordineCompleto);
+    } catch(e) {
+        console.warn('Errore salvataggio storico:', e);
+    }
+    
     // Aggiorna numero ordine
     APP.currentOrdineClienti.numero = ordineCompleto.numero + 1;
     localStorage.setItem('picam_ordini_last_num', ordineCompleto.numero.toString());
@@ -1801,6 +1808,13 @@ APP.confermaOrdineFornitore = async function() {
     // Salva nella coda
     await DB.addToQueue('queueOrdiniFornitori', ordineCompleto);
     
+    // Salva anche nello storico
+    try {
+        await DB.addToStorico('storicoOrdiniFornitori', ordineCompleto);
+    } catch(e) {
+        console.warn('Errore salvataggio storico:', e);
+    }
+    
     // Aggiorna numero ordine
     APP.currentOrdineFornitori.numero = ordineCompleto.numero + 1;
     localStorage.setItem('picam_ordfor_last_num', ordineCompleto.numero.toString());
@@ -1824,44 +1838,124 @@ APP.confermaOrdineFornitore = async function() {
 };
 
 // ==========================================
-// MODAL CODA
+// MODAL CODA E STORICO
 // ==========================================
 
 APP.queueData = []; // Cache della coda corrente
+APP.storicoData = []; // Cache dello storico corrente
+APP.currentQueueTab = 'coda'; // Tab attivo
 
 APP.openQueueModal = async function(context) {
     APP.queueContext = context;
+    APP.currentQueueTab = 'coda'; // Reset al tab coda
     
     const modal = document.getElementById('modal-queue');
     const title = document.getElementById('queue-modal-title');
-    const countEl = document.getElementById('queue-count');
-    const listEl = document.getElementById('queue-list');
-    const actionsEl = document.getElementById('queue-actions');
+    const tabsEl = document.getElementById('queue-tabs');
     
-    let storeName = '';
-    
+    // Titolo in base al contesto
     switch (context) {
         case 'inventario':
-            title.textContent = '📋 Coda Inventario';
-            storeName = 'queueInventario';
+            title.textContent = '📋 Gestione Inventario';
+            // Nascondi tabs per inventario (no storico)
+            tabsEl.style.display = 'none';
             break;
         case 'ordiniClienti':
-            title.textContent = '🛒 Coda Ordini Clienti';
-            storeName = 'queueOrdiniClienti';
+            title.textContent = '🛒 Gestione Ordini Clienti';
+            tabsEl.style.display = 'flex';
             break;
         case 'ordiniFornitori':
-            title.textContent = '🏭 Coda Ordini Fornitori';
-            storeName = 'queueOrdiniFornitori';
+            title.textContent = '🏭 Gestione Ordini Fornitori';
+            tabsEl.style.display = 'flex';
             break;
     }
     
+    // Carica i dati
+    await APP.loadQueueData();
+    await APP.loadStoricoData();
+    
+    // Aggiorna badge tab
+    APP.updateQueueTabBadges();
+    
+    // Mostra tab coda
+    APP.switchQueueTab('coda');
+    
+    modal.classList.remove('hidden');
+};
+
+// Carica dati coda
+APP.loadQueueData = async function() {
+    let storeName = '';
+    switch (APP.queueContext) {
+        case 'inventario': storeName = 'queueInventario'; break;
+        case 'ordiniClienti': storeName = 'queueOrdiniClienti'; break;
+        case 'ordiniFornitori': storeName = 'queueOrdiniFornitori'; break;
+    }
     APP.queueData = await DB.getQueue(storeName);
+};
+
+// Carica dati storico
+APP.loadStoricoData = async function() {
+    if (APP.queueContext === 'inventario') {
+        APP.storicoData = [];
+        return;
+    }
+    
+    let storeName = '';
+    switch (APP.queueContext) {
+        case 'ordiniClienti': storeName = 'storicoOrdiniClienti'; break;
+        case 'ordiniFornitori': storeName = 'storicoOrdiniFornitori'; break;
+    }
+    
+    try {
+        APP.storicoData = await DB.getStorico(storeName);
+    } catch(e) {
+        APP.storicoData = [];
+    }
+};
+
+// Aggiorna badge dei tab
+APP.updateQueueTabBadges = function() {
+    document.getElementById('tab-coda-count').textContent = APP.queueData.length;
+    document.getElementById('tab-storico-count').textContent = APP.storicoData.length;
+};
+
+// Switch tra tab
+APP.switchQueueTab = function(tab) {
+    APP.currentQueueTab = tab;
+    
+    // Aggiorna stato tab
+    document.querySelectorAll('.queue-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tab);
+    });
+    
+    // Aggiorna contenuto visibile
+    document.querySelectorAll('.queue-tab-content').forEach(c => {
+        c.classList.toggle('active', c.id === `tab-content-${tab}`);
+    });
+    
+    // Render contenuto
+    if (tab === 'coda') {
+        APP.renderQueueList();
+    } else {
+        APP.renderStoricoList();
+    }
+};
+
+// Render lista coda
+APP.renderQueueList = function() {
+    const countEl = document.getElementById('queue-count');
+    const listEl = document.getElementById('queue-list');
+    const actionsEl = document.getElementById('queue-actions');
+    const hintEl = document.getElementById('queue-tap-hint');
+    
     countEl.textContent = `${APP.queueData.length} elementi`;
     
-    // Render lista con selezione
     if (APP.queueData.length === 0) {
         listEl.innerHTML = '<div class="empty-message">Nessun elemento in coda</div>';
-    } else if (context === 'inventario') {
+        hintEl.style.display = 'none';
+    } else if (APP.queueContext === 'inventario') {
+        hintEl.style.display = 'flex';
         listEl.innerHTML = APP.queueData.map((item, index) => `
             <div class="queue-item selectable" onclick="APP.selectQueueItem(${index})">
                 <div class="queue-item-info">
@@ -1874,7 +1968,7 @@ APP.openQueueModal = async function(context) {
             </div>
         `).join('');
     } else {
-        // Ordini
+        hintEl.style.display = 'flex';
         listEl.innerHTML = APP.queueData.map((ord, index) => `
             <div class="ordine-item selectable" onclick="APP.selectQueueItem(${index})">
                 <div class="ordine-header">
@@ -1884,7 +1978,7 @@ APP.openQueueModal = async function(context) {
                 </div>
                 <div class="ordine-body">
                     <span class="ordine-soggetto">
-                        ${context === 'ordiniClienti' ? ord.cliente.ragSoc1 : ord.fornitore.ragSoc1}
+                        ${APP.queueContext === 'ordiniClienti' ? ord.cliente.ragSoc1 : ord.fornitore.ragSoc1}
                     </span>
                     <span class="ordine-righe">${ord.righe.length} art. - € ${ord.righe.reduce((s, r) => s + r.qty * r.prezzo, 0).toFixed(2)}</span>
                 </div>
@@ -1894,23 +1988,212 @@ APP.openQueueModal = async function(context) {
     
     // Render azioni
     actionsEl.innerHTML = `
-        <div class="queue-action-hint">
-            👆 Tocca un ordine qui sopra per stamparlo o condividerlo
-        </div>
-        <button class="btn-primary" onclick="APP.syncQueue('${context}')">
+        <button class="btn-primary" onclick="APP.syncQueue('${APP.queueContext}')">
             ☁️ Sincronizza su Drive
         </button>
         <div class="queue-actions-row">
-            <button class="btn-secondary" onclick="APP.generateReport('${context}')">
+            <button class="btn-secondary" onclick="APP.generateReport('${APP.queueContext}')">
                 📄 Report PDF
             </button>
-            <button class="btn-danger" onclick="APP.clearQueue('${context}')">
-                🗑️ Svuota
+            <button class="btn-danger" onclick="APP.clearQueue('${APP.queueContext}')">
+                🗑️ Svuota Coda
             </button>
         </div>
     `;
+};
+
+// Render lista storico
+APP.renderStoricoList = function(filteredData = null) {
+    const listEl = document.getElementById('storico-list');
+    const actionsEl = document.getElementById('storico-actions');
+    
+    const data = filteredData || APP.storicoData;
+    
+    if (data.length === 0) {
+        listEl.innerHTML = `
+            <div class="storico-empty">
+                <div class="storico-empty-icon">📚</div>
+                <p>Nessun ordine nello storico</p>
+            </div>
+        `;
+        actionsEl.style.display = 'none';
+        return;
+    }
+    
+    actionsEl.style.display = 'flex';
+    
+    listEl.innerHTML = data.map((ord, index) => {
+        const soggetto = ord.cliente || ord.fornitore;
+        const totale = ord.righe.reduce((s, r) => s + r.qty * r.prezzo, 0);
+        const dataOrd = new Date(ord.data);
+        
+        return `
+            <div class="storico-item" onclick="APP.showStoricoDetail(${ord.id})">
+                <div class="storico-item-icon">${ord.cliente ? '🛒' : '📦'}</div>
+                <div class="storico-item-info">
+                    <div class="storico-item-header">
+                        <span class="storico-item-num">#${ord.registro}/${ord.numero}</span>
+                        <span class="storico-item-date">${APP.formatDate(dataOrd)}</span>
+                    </div>
+                    <div class="storico-item-soggetto">${soggetto?.ragSoc1 || 'N/D'}</div>
+                    <div class="storico-item-detail">${ord.righe.length} articoli</div>
+                </div>
+                <div class="storico-item-total">€ ${totale.toFixed(2)}</div>
+            </div>
+        `;
+    }).join('');
+};
+
+// Ricerca nello storico
+APP.searchStorico = function() {
+    const query = document.getElementById('storico-search-input').value.trim();
+    
+    if (!query) {
+        APP.renderStoricoList();
+        return;
+    }
+    
+    const queryLower = query.toLowerCase();
+    const filtered = APP.storicoData.filter(ord => {
+        const soggetto = ord.cliente || ord.fornitore;
+        if (!soggetto) return false;
+        
+        const ragSoc = (soggetto.ragSoc1 || '').toLowerCase();
+        const codice = (soggetto.codice || '').toLowerCase();
+        const numero = (ord.numero || '').toString();
+        
+        return ragSoc.includes(queryLower) || 
+               codice.includes(queryLower) ||
+               numero.includes(queryLower);
+    });
+    
+    APP.renderStoricoList(filtered);
+};
+
+// Mostra dettaglio ordine storico
+APP.showStoricoDetail = async function(id) {
+    let storeName = APP.queueContext === 'ordiniClienti' ? 'storicoOrdiniClienti' : 'storicoOrdiniFornitori';
+    
+    const ordine = await DB.getStoricoById(storeName, id);
+    if (!ordine) {
+        APP.showToast('Ordine non trovato', 'error');
+        return;
+    }
+    
+    APP.selectedStoricoItem = ordine;
+    
+    const modal = document.getElementById('modal-item-detail');
+    const title = document.getElementById('item-detail-title');
+    const content = document.getElementById('item-detail-content');
+    const actionsEl = document.getElementById('item-detail-actions');
+    
+    const soggetto = ordine.cliente || ordine.fornitore;
+    const totale = ordine.righe.reduce((s, r) => s + r.qty * r.prezzo, 0);
+    
+    title.textContent = `📚 Ordine #${ordine.registro}/${ordine.numero}`;
+    
+    content.innerHTML = `
+        <div class="detail-section">
+            <div class="detail-label">${ordine.cliente ? 'Cliente' : 'Fornitore'}</div>
+            <div class="detail-value">${soggetto?.ragSoc1 || 'N/D'}</div>
+            <div class="detail-sub">${soggetto?.codice || ''}</div>
+        </div>
+        <div class="detail-section">
+            <div class="detail-label">Data ordine</div>
+            <div class="detail-value">${APP.formatDate(new Date(ordine.data))}</div>
+        </div>
+        <div class="detail-section">
+            <div class="detail-label">Articoli (${ordine.righe.length})</div>
+            <div class="detail-righe">
+                ${ordine.righe.map(r => `
+                    <div class="detail-riga">
+                        <span class="riga-code">${r.codice}</span>
+                        <span class="riga-desc">${r.des1 || ''}</span>
+                        <span class="riga-qty">x${r.qty}</span>
+                        <span class="riga-price">€ ${(r.qty * r.prezzo).toFixed(2)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        <div class="detail-totale">
+            <span>TOTALE</span>
+            <span>€ ${totale.toFixed(2)}</span>
+        </div>
+    `;
+    
+    actionsEl.innerHTML = `
+        <button class="btn-primary" onclick="APP.duplicaOrdineStorico()">
+            📋 Duplica Ordine
+        </button>
+        <button class="btn-secondary" onclick="APP.closeItemDetailModal()">Chiudi</button>
+    `;
     
     modal.classList.remove('hidden');
+};
+
+// Duplica ordine dallo storico
+APP.duplicaOrdineStorico = function() {
+    const ordine = APP.selectedStoricoItem;
+    if (!ordine) return;
+    
+    // Chiudi le modal
+    APP.closeItemDetailModal();
+    APP.closeQueueModal();
+    
+    if (ordine.cliente) {
+        // Duplica come ordine cliente
+        APP.currentOrdineClienti.cliente = { ...ordine.cliente };
+        APP.currentOrdineClienti.righe = ordine.righe.map(r => ({ ...r }));
+        
+        APP.showScreen('ordini-clienti');
+        APP.renderSelectedCliente();
+        APP.renderRigheOrdineClienti();
+        APP.updateBtnConfermaOrdCli();
+        
+        APP.showToast('Ordine duplicato - modifica e conferma', 'success');
+    } else if (ordine.fornitore) {
+        // Duplica come ordine fornitore
+        APP.currentOrdineFornitori.fornitore = { ...ordine.fornitore };
+        APP.currentOrdineFornitori.righe = ordine.righe.map(r => ({ ...r }));
+        
+        APP.showScreen('ordini-fornitori');
+        APP.renderSelectedFornitore();
+        APP.renderRigheOrdineFornitori();
+        APP.updateBtnConfermaOrdFor();
+        
+        APP.showToast('Ordine duplicato - modifica e conferma', 'success');
+    }
+};
+
+// Conferma azzeramento storico
+APP.clearStoricoConfirm = function() {
+    const count = APP.storicoData.length;
+    
+    if (count === 0) {
+        APP.showToast('Storico già vuoto', 'info');
+        return;
+    }
+    
+    if (!confirm(`Vuoi eliminare tutti i ${count} ordini dallo storico?\n\nQuesta azione non può essere annullata.`)) {
+        return;
+    }
+    
+    APP.clearStorico();
+};
+
+// Azzera storico
+APP.clearStorico = async function() {
+    let storeName = APP.queueContext === 'ordiniClienti' ? 'storicoOrdiniClienti' : 'storicoOrdiniFornitori';
+    
+    try {
+        await DB.clearStorico(storeName);
+        APP.storicoData = [];
+        APP.updateQueueTabBadges();
+        APP.renderStoricoList();
+        APP.showToast('Storico azzerato', 'success');
+    } catch(e) {
+        APP.showToast('Errore azzeramento storico', 'error');
+    }
 };
 
 APP.closeQueueModal = function() {
@@ -2279,6 +2562,9 @@ APP.syncOrdiniClienti = async function() {
     await DB.clearQueue('queueOrdiniClienti');
     APP.updateHeaderQueueCount('ordCli');
     APP.updateBadges();
+    
+    // Sincronizza anche lo storico su Drive
+    await APP.syncStoricoToDrive('ordiniClienti');
 };
 
 APP.syncOrdiniFornitori = async function() {
@@ -2333,6 +2619,118 @@ APP.syncOrdiniFornitori = async function() {
     await DB.clearQueue('queueOrdiniFornitori');
     APP.updateHeaderQueueCount('ordFor');
     APP.updateBadges();
+    
+    // Sincronizza anche lo storico su Drive
+    await APP.syncStoricoToDrive('ordiniFornitori');
+};
+
+// ==========================================
+// SINCRONIZZAZIONE STORICO SU GOOGLE DRIVE
+// ==========================================
+
+APP.syncStoricoToDrive = async function(tipo) {
+    let storeName, fileName;
+    
+    if (tipo === 'ordiniClienti') {
+        storeName = 'storicoOrdiniClienti';
+        fileName = 'storico-ordini-clienti.json';
+    } else {
+        storeName = 'storicoOrdiniFornitori';
+        fileName = 'storico-ordini-fornitori.json';
+    }
+    
+    try {
+        const storico = await DB.getStorico(storeName);
+        if (storico.length === 0) return;
+        
+        const folderId = await APP.findFolder(APP.config.folder);
+        if (!folderId) return;
+        
+        const jsonData = JSON.stringify(storico, null, 2);
+        await APP.uploadFile(folderId, fileName, new TextEncoder().encode(jsonData), 'application/json');
+        
+        console.log(`Storico ${tipo} sincronizzato su Drive (${storico.length} ordini)`);
+    } catch(e) {
+        console.warn('Errore sync storico su Drive:', e);
+    }
+};
+
+APP.loadStoricoFromDrive = async function() {
+    try {
+        const folderId = await APP.findFolder(APP.config.folder);
+        if (!folderId) return;
+        
+        // Carica storico clienti
+        await APP.loadStoricoFile(folderId, 'storico-ordini-clienti.json', 'storicoOrdiniClienti');
+        
+        // Carica storico fornitori
+        await APP.loadStoricoFile(folderId, 'storico-ordini-fornitori.json', 'storicoOrdiniFornitori');
+        
+        console.log('Storico caricato da Drive');
+    } catch(e) {
+        console.warn('Errore caricamento storico da Drive:', e);
+    }
+};
+
+APP.loadStoricoFile = async function(folderId, fileName, storeName) {
+    try {
+        // Cerca il file
+        const query = `name='${fileName}' and '${folderId}' in parents and trashed=false`;
+        const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`;
+        
+        const searchResponse = await fetch(searchUrl, {
+            headers: { 'Authorization': `Bearer ${APP.accessToken}` }
+        });
+        const searchData = await searchResponse.json();
+        
+        if (!searchData.files || searchData.files.length === 0) {
+            console.log(`File ${fileName} non trovato su Drive`);
+            return;
+        }
+        
+        const fileId = searchData.files[0].id;
+        
+        // Scarica contenuto
+        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        const downloadResponse = await fetch(downloadUrl, {
+            headers: { 'Authorization': `Bearer ${APP.accessToken}` }
+        });
+        
+        if (!downloadResponse.ok) {
+            throw new Error(`Errore download: ${downloadResponse.status}`);
+        }
+        
+        const jsonText = await downloadResponse.text();
+        const storicoData = JSON.parse(jsonText);
+        
+        if (!Array.isArray(storicoData)) return;
+        
+        // Ottieni storico locale
+        let storicoLocale = [];
+        try {
+            storicoLocale = await DB.getStorico(storeName);
+        } catch(e) {}
+        
+        // Merge: mantieni gli ordini più recenti (evita duplicati per registro/numero)
+        const localKeys = new Set(storicoLocale.map(o => `${o.registro}-${o.numero}-${o.timestamp}`));
+        
+        let importati = 0;
+        for (const ordine of storicoData) {
+            const key = `${ordine.registro}-${ordine.numero}-${ordine.timestamp}`;
+            if (!localKeys.has(key)) {
+                // Rimuovi l'id per evitare conflitti (autoIncrement)
+                const { id, ...ordineSenzaId } = ordine;
+                await DB.addToStorico(storeName, ordineSenzaId);
+                importati++;
+            }
+        }
+        
+        if (importati > 0) {
+            console.log(`Importati ${importati} ordini da ${fileName}`);
+        }
+    } catch(e) {
+        console.warn(`Errore caricamento ${fileName}:`, e);
+    }
 };
 
 APP.uploadFile = async function(folderId, fileName, data, mimeType) {
@@ -3061,6 +3459,11 @@ APP.initWithAuth = async function() {
             APP.updateMenuStats();
             APP.updateBadges();
             APP.showToast(`Bentornato! ${stats.articoli} articoli caricati`, 'success');
+            
+            // Carica storico da Drive in background (se connesso)
+            if (APP.accessToken) {
+                APP.loadStoricoFromDrive().catch(e => console.warn('Storico non caricato:', e));
+            }
         } else {
             // Mostra setup per caricare dati
             APP.showScreen('setup');

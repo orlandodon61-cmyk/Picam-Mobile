@@ -467,19 +467,47 @@
     <div class="modal-overlay hidden" id="modal-queue">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h3 id="queue-modal-title">Coda</h3>
+                <h3 id="queue-modal-title">Gestione</h3>
                 <button class="btn-close" onclick="APP.closeQueueModal()">✕</button>
             </div>
             <div class="modal-body">
-                <div class="queue-header">
-                    <span class="queue-count" id="queue-count">0 elementi</span>
+                <!-- Tab Navigation -->
+                <div class="queue-tabs" id="queue-tabs">
+                    <button class="queue-tab active" data-tab="coda" onclick="APP.switchQueueTab('coda')">
+                        📤 In Coda <span class="tab-badge" id="tab-coda-count">0</span>
+                    </button>
+                    <button class="queue-tab" data-tab="storico" onclick="APP.switchQueueTab('storico')">
+                        📚 Storico <span class="tab-badge" id="tab-storico-count">0</span>
+                    </button>
                 </div>
-                <div class="queue-tap-hint" id="queue-tap-hint">
-                    <span class="tap-icon">👆</span>
-                    <span>Tocca un ordine per stampare, modificare o condividere</span>
+                
+                <!-- Tab Content: Coda -->
+                <div class="queue-tab-content active" id="tab-content-coda">
+                    <div class="queue-header">
+                        <span class="queue-count" id="queue-count">0 elementi</span>
+                    </div>
+                    <div class="queue-tap-hint" id="queue-tap-hint">
+                        <span class="tap-icon">👆</span>
+                        <span>Tocca un ordine per stampare, modificare o condividere</span>
+                    </div>
+                    <div class="queue-list" id="queue-list"></div>
+                    <div class="queue-actions" id="queue-actions"></div>
                 </div>
-                <div class="queue-list" id="queue-list"></div>
-                <div class="queue-actions" id="queue-actions"></div>
+                
+                <!-- Tab Content: Storico -->
+                <div class="queue-tab-content" id="tab-content-storico">
+                    <div class="storico-search">
+                        <input type="text" id="storico-search-input" placeholder="🔍 Cerca per cliente/fornitore..." onkeyup="APP.searchStorico()">
+                    </div>
+                    <div class="queue-tap-hint">
+                        <span class="tap-icon">👆</span>
+                        <span>Tocca un ordine per vedere i dettagli o duplicarlo</span>
+                    </div>
+                    <div class="storico-list" id="storico-list"></div>
+                    <div class="storico-actions" id="storico-actions">
+                        <button class="btn-danger" onclick="APP.clearStoricoConfirm()">🗑️ Azzera Storico</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
