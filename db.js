@@ -3,7 +3,7 @@
 // ==========================================
 
 const DB_NAME = 'PicamDB';
-const DB_VERSION = 3; // v3: Aggiunto storico ordini
+const DB_VERSION = 4; // v4: Aggiunto gruppi merceologici e locazioni
 
 let db = null;
 
@@ -102,6 +102,17 @@ function initDB() {
                 const storicoForStore = database.createObjectStore('storicoOrdiniFornitori', { keyPath: 'id', autoIncrement: true });
                 storicoForStore.createIndex('timestamp', 'timestamp', { unique: false });
                 storicoForStore.createIndex('fornitoreCodice', 'fornitore.codice', { unique: false });
+            }
+            
+            // Store GRUPPI MERCEOLOGICI (v4)
+            if (!database.objectStoreNames.contains('gruppiMerceologici')) {
+                const gruppiStore = database.createObjectStore('gruppiMerceologici', { keyPath: 'codice' });
+                gruppiStore.createIndex('descrizione', 'descrizione', { unique: false });
+            }
+            
+            // Store LOCAZIONI (v4) - per gestione locazioni personalizzate
+            if (!database.objectStoreNames.contains('locazioni')) {
+                const locStore = database.createObjectStore('locazioni', { keyPath: 'codice' });
             }
 
             console.log('Schema IndexedDB creato');
@@ -662,6 +673,192 @@ function searchStorico(storeName, query) {
 }
 
 // ==========================================
+// GRUPPI MERCEOLOGICI (v4)
+// ==========================================
+
+function saveGruppiMerceologici(gruppi) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await clearStore('gruppiMerceologici');
+            const store = getStore('gruppiMerceologici', 'readwrite');
+            let completed = 0;
+            
+            if (gruppi.length === 0) {
+                resolve(0);
+                return;
+            }
+            
+            gruppi.forEach(item => {
+                const request = store.put(item);
+                request.onsuccess = () => {
+                    completed++;
+                    if (completed === gruppi.length) resolve(completed);
+                };
+                request.onerror = () => reject(request.error);
+            });
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+function getAllGruppiMerceologici() {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('gruppiMerceologici', 'readonly');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                // Ordina per descrizione
+                const result = request.result.sort((a, b) => 
+                    (a.descrizione || '').localeCompare(b.descrizione || '')
+                );
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+function getGruppoByCode(codice) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('gruppiMerceologici', 'readonly');
+            const request = store.get(codice);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve(null);
+        }
+    });
+}
+
+// Ottieni articoli per gruppo merceologico
+function getArticoliByGruppo(codiceGruppo) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('articoli', 'readonly');
+            const index = store.index('gruppo');
+            const request = index.getAll(codiceGruppo);
+            request.onsuccess = () => {
+                // Ordina per descrizione
+                const result = request.result.sort((a, b) => 
+                    (a.des1 || '').localeCompare(b.des1 || '')
+                );
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+// ==========================================
+// LOCAZIONI (v4)
+// ==========================================
+
+function saveLocazioni(locazioni) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await clearStore('locazioni');
+            const store = getStore('locazioni', 'readwrite');
+            let completed = 0;
+            
+            if (locazioni.length === 0) {
+                resolve(0);
+                return;
+            }
+            
+            locazioni.forEach(item => {
+                const request = store.put(item);
+                request.onsuccess = () => {
+                    completed++;
+                    if (completed === locazioni.length) resolve(completed);
+                };
+                request.onerror = () => reject(request.error);
+            });
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+function addLocazione(locazione) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('locazioni', 'readwrite');
+            const request = store.put(locazione);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+function getAllLocazioni() {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('locazioni', 'readonly');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                // Ordina per codice
+                const result = request.result.sort((a, b) => 
+                    (a.codice || '').localeCompare(b.codice || '')
+                );
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+// Ottieni articoli per locazione
+function getArticoliByLocazione(locazione) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('articoli', 'readonly');
+            const index = store.index('locazione');
+            const request = index.getAll(locazione);
+            request.onsuccess = () => {
+                // Ordina per descrizione
+                const result = request.result.sort((a, b) => 
+                    (a.des1 || '').localeCompare(b.des1 || '')
+                );
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+// Estrai locazioni uniche dagli articoli
+async function extractLocazioniFromArticoli() {
+    const articoli = await getAllArticoli();
+    const locazioniSet = new Set();
+    
+    articoli.forEach(art => {
+        if (art.locazione && art.locazione.trim()) {
+            locazioniSet.add(art.locazione.trim());
+        }
+    });
+    
+    const locazioni = Array.from(locazioniSet).map(loc => ({
+        codice: loc,
+        descrizione: loc
+    }));
+    
+    await saveLocazioni(locazioni);
+    return locazioni;
+}
+
+// ==========================================
 // EXPORT MODULO
 // ==========================================
 
@@ -712,6 +909,19 @@ const DB = {
     getStoricoById,
     clearStorico,
     searchStorico,
+    
+    // Gruppi Merceologici (v4)
+    saveGruppiMerceologici,
+    getAllGruppiMerceologici,
+    getGruppoByCode,
+    getArticoliByGruppo,
+    
+    // Locazioni (v4)
+    saveLocazioni,
+    addLocazione,
+    getAllLocazioni,
+    getArticoliByLocazione,
+    extractLocazioniFromArticoli,
     
     // Metadata
     setMetadata,

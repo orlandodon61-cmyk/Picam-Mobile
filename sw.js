@@ -1,9 +1,9 @@
 // ==========================================
 // PICAM v3.5 - Service Worker
-// Cache Version: v35 - Storico Ordini
+// Cache Version: v37 - Filtri Avanzati + Locazioni Editabili
 // ==========================================
 
-const CACHE_NAME = 'picam-cache-v35';
+const CACHE_NAME = 'picam-cache-v37';
 const ASSETS = [
     './',
     './index.html',
@@ -20,7 +20,7 @@ const ASSETS = [
 
 // Install
 self.addEventListener('install', event => {
-    console.log('[SW] Install v35');
+    console.log('[SW] Install v36');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {

@@ -190,31 +190,126 @@
         </header>
 
         <div style="padding: 16px;">
-            <!-- Toggle Scansione Veloce -->
-            <div class="scan-mode-toggle">
-                <label class="toggle-label">
-                    <input type="checkbox" id="fast-scan-inv" onchange="APP.toggleFastScan('inv')">
-                    <span class="toggle-slider"></span>
-                </label>
-                <span class="toggle-text">⚡ Scansione veloce (qta=1)</span>
-            </div>
-
-            <!-- Barra Ricerca -->
-            <div class="search-bar">
-                <span class="search-icon">🔍</span>
-                <input type="text" id="search-inv" placeholder="Cerca articolo..." oninput="APP.debounceSearch('inv')">
-                <button class="btn-scan" onclick="APP.startScan('inv')">📷</button>
-            </div>
-
-            <!-- Risultati Ricerca -->
-            <div class="results-list mt-16" id="results-inv"></div>
-
-            <!-- Cronologia -->
-            <div class="card mt-16" id="history-inv-card">
-                <div class="card-header">
-                    <span class="card-title">📜 Ultime scansioni</span>
+            <!-- Scelta Modalità Inventario -->
+            <div class="inv-mode-selector" id="inv-mode-selector">
+                <div class="inv-mode-title">Seleziona modalità inventario</div>
+                <div class="inv-mode-buttons">
+                    <button class="inv-mode-btn" onclick="APP.setInvMode('scansione')">
+                        <span class="inv-mode-icon">📷</span>
+                        <span class="inv-mode-label">Scansione</span>
+                        <span class="inv-mode-desc">Articolo singolo</span>
+                    </button>
+                    <button class="inv-mode-btn" onclick="APP.showLocazioneSelector()">
+                        <span class="inv-mode-icon">📍</span>
+                        <span class="inv-mode-label">Per Locazione</span>
+                        <span class="inv-mode-desc">Lista articoli</span>
+                    </button>
+                    <button class="inv-mode-btn" onclick="APP.showGruppoSelector()">
+                        <span class="inv-mode-icon">📦</span>
+                        <span class="inv-mode-label">Per Gruppo</span>
+                        <span class="inv-mode-desc">Merceologico</span>
+                    </button>
                 </div>
-                <div class="history-list" id="history-inv"></div>
+            </div>
+
+            <!-- Modalità Scansione (default, nascosta inizialmente) -->
+            <div id="inv-scansione-mode" style="display: none;">
+                <button class="btn-change-mode" onclick="APP.showModeSelector()">
+                    ← Cambia modalità
+                </button>
+                
+                <!-- Toggle Scansione Veloce -->
+                <div class="scan-mode-toggle">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="fast-scan-inv" onchange="APP.toggleFastScan('inv')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-text">⚡ Scansione veloce (qta=1)</span>
+                </div>
+
+                <!-- Barra Ricerca -->
+                <div class="search-bar">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-inv" placeholder="Cerca articolo..." oninput="APP.debounceSearch('inv')">
+                    <button class="btn-filter-toggle" onclick="APP.toggleArticoliFilters('inv')" title="Filtri avanzati">⚙️</button>
+                    <button class="btn-scan" onclick="APP.startScan('inv')">📷</button>
+                </div>
+                
+                <!-- Filtri Avanzati Articoli (nascosto di default) -->
+                <div class="articoli-filters hidden" id="articoli-filters-inv">
+                    <div class="filter-row">
+                        <select id="filter-gruppo-inv" onchange="APP.applyArticoliFilters('inv')">
+                            <option value="">📦 Tutti i gruppi</option>
+                        </select>
+                        <select id="filter-locazione-inv" onchange="APP.applyArticoliFilters('inv')">
+                            <option value="">📍 Tutte le locazioni</option>
+                        </select>
+                    </div>
+                    <div class="filter-row">
+                        <select id="filter-giacenza-inv" onchange="APP.applyArticoliFilters('inv')">
+                            <option value="">📊 Tutte le giacenze</option>
+                            <option value="positive">Con giacenza > 0</option>
+                            <option value="zero">Giacenza = 0</option>
+                            <option value="negative">Giacenza < 0</option>
+                        </select>
+                        <button class="btn-reset-filters" onclick="APP.resetArticoliFilters('inv')">🔄 Reset</button>
+                    </div>
+                </div>
+
+                <!-- Risultati Ricerca -->
+                <div class="results-list mt-16" id="results-inv"></div>
+
+                <!-- Cronologia -->
+                <div class="card mt-16" id="history-inv-card">
+                    <div class="card-header">
+                        <span class="card-title">📜 Ultime scansioni</span>
+                    </div>
+                    <div class="history-list" id="history-inv"></div>
+                </div>
+            </div>
+            
+            <!-- Modalità Tabellare (per locazione/gruppo) -->
+            <div id="inv-tabellare-mode" style="display: none;">
+                <div class="inv-tab-header">
+                    <button class="btn-change-mode" onclick="APP.showModeSelector()">
+                        ← Cambia modalità
+                    </button>
+                    <div class="inv-tab-info" id="inv-tab-info">
+                        <!-- Popolato dinamicamente -->
+                    </div>
+                </div>
+                
+                <!-- Selezione Locazione o Gruppo -->
+                <div class="inv-tab-selector" id="inv-tab-selector">
+                    <select id="inv-tab-select" onchange="APP.loadArticoliTabellare()">
+                        <option value="">-- Seleziona --</option>
+                    </select>
+                </div>
+                
+                <!-- Tabella Articoli -->
+                <div class="inv-tab-table-container">
+                    <table class="inv-tab-table" id="inv-tab-table">
+                        <thead>
+                            <tr>
+                                <th>Codice</th>
+                                <th>Descrizione</th>
+                                <th>Loc.</th>
+                                <th style="width: 80px;">Qtà</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="inv-tab-tbody">
+                            <!-- Popolato dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Azioni Tabellare -->
+                <div class="inv-tab-actions" id="inv-tab-actions" style="display: none;">
+                    <button class="btn-primary" onclick="APP.confirmAllInventario()">
+                        ✅ Conferma Tutto (<span id="inv-tab-count">0</span> articoli)
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -281,7 +376,27 @@
                 <div class="search-bar">
                     <span class="search-icon">🔍</span>
                     <input type="text" id="search-art-ord-cli" placeholder="Cerca articolo..." oninput="APP.debounceSearch('artOrdCli')">
+                    <button class="btn-filter-toggle" onclick="APP.toggleArticoliFilters('artOrdCli')" title="Filtri avanzati">⚙️</button>
                     <button class="btn-scan" onclick="APP.startScan('ordCli')">📷</button>
+                </div>
+                <!-- Filtri Avanzati Articoli -->
+                <div class="articoli-filters hidden" id="articoli-filters-artOrdCli">
+                    <div class="filter-row">
+                        <select id="filter-gruppo-artOrdCli" onchange="APP.applyArticoliFilters('artOrdCli')">
+                            <option value="">📦 Tutti i gruppi</option>
+                        </select>
+                        <select id="filter-locazione-artOrdCli" onchange="APP.applyArticoliFilters('artOrdCli')">
+                            <option value="">📍 Tutte le locazioni</option>
+                        </select>
+                    </div>
+                    <div class="filter-row">
+                        <select id="filter-giacenza-artOrdCli" onchange="APP.applyArticoliFilters('artOrdCli')">
+                            <option value="">📊 Tutte le giacenze</option>
+                            <option value="positive">Con giacenza > 0</option>
+                            <option value="zero">Giacenza = 0</option>
+                        </select>
+                        <button class="btn-reset-filters" onclick="APP.resetArticoliFilters('artOrdCli')">🔄 Reset</button>
+                    </div>
                 </div>
                 <div id="results-art-ord-cli" class="results-list mt-12"></div>
                 <div class="righe-list" id="righe-ord-cli"></div>
@@ -377,7 +492,28 @@
                 <div class="search-bar">
                     <span class="search-icon">🔍</span>
                     <input type="text" id="search-art-ord-for" placeholder="Cerca articolo..." oninput="APP.debounceSearch('artOrdFor')">
+                    <button class="btn-filter-toggle" onclick="APP.toggleArticoliFilters('artOrdFor')" title="Filtri avanzati">⚙️</button>
                     <button class="btn-scan" onclick="APP.startScan('ordFor')">📷</button>
+                </div>
+                <!-- Filtri Avanzati Articoli -->
+                <div class="articoli-filters hidden" id="articoli-filters-artOrdFor">
+                    <div class="filter-row">
+                        <select id="filter-gruppo-artOrdFor" onchange="APP.applyArticoliFilters('artOrdFor')">
+                            <option value="">📦 Tutti i gruppi</option>
+                        </select>
+                        <select id="filter-locazione-artOrdFor" onchange="APP.applyArticoliFilters('artOrdFor')">
+                            <option value="">📍 Tutte le locazioni</option>
+                        </select>
+                    </div>
+                    <div class="filter-row">
+                        <select id="filter-giacenza-artOrdFor" onchange="APP.applyArticoliFilters('artOrdFor')">
+                            <option value="">📊 Tutte le giacenze</option>
+                            <option value="positive">Con giacenza > 0</option>
+                            <option value="zero">Giacenza = 0</option>
+                            <option value="negative">Giacenza < 0</option>
+                        </select>
+                        <button class="btn-reset-filters" onclick="APP.resetArticoliFilters('artOrdFor')">🔄 Reset</button>
+                    </div>
                 </div>
                 <div id="results-art-ord-for" class="results-list mt-12"></div>
                 <div class="righe-list" id="righe-ord-for"></div>
@@ -431,6 +567,18 @@
                     <p style="font-size: 16px; font-weight: 600;" id="qty-articolo-desc"></p>
                     <p style="font-size: 14px; color: var(--accent-primary); font-family: var(--font-mono);" id="qty-articolo-code"></p>
                 </div>
+                <!-- Campo locazione per inventario -->
+                <div class="card hidden" id="qty-locazione-container" style="margin-bottom: 16px;">
+                    <label style="font-size: 13px; color: var(--text-secondary); display: block; margin-bottom: 8px;">📍 Locazione:</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="qty-locazione-input" placeholder="Inserisci o seleziona..." 
+                               style="flex: 1; padding: 10px 12px; font-size: 14px; border: 2px solid var(--border-color); border-radius: 8px;"
+                               list="locazioni-list">
+                        <datalist id="locazioni-list"></datalist>
+                        <button type="button" onclick="APP.clearLocazioneInput()" 
+                                style="padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px;">✕</button>
+                    </div>
+                </div>
                 <!-- Campo prezzo per ordini fornitori -->
                 <div class="card hidden" id="qty-prezzo-container" style="margin-bottom: 16px;">
                     <label style="font-size: 13px; color: var(--text-secondary); display: block; margin-bottom: 8px;">Prezzo unitario (opzionale):</label>
@@ -483,6 +631,19 @@
                 
                 <!-- Tab Content: Coda -->
                 <div class="queue-tab-content active" id="tab-content-coda">
+                    <!-- Filtri Inventario (solo per inventario) -->
+                    <div class="inv-gestione-filters" id="inv-gestione-filters" style="display: none;">
+                        <select id="inv-filter-locazione" onchange="APP.filterInventarioQueue()">
+                            <option value="">📍 Tutte le locazioni</option>
+                        </select>
+                        <select id="inv-filter-gruppo" onchange="APP.filterInventarioQueue()">
+                            <option value="">📦 Tutti i gruppi</option>
+                        </select>
+                    </div>
+                    <!-- Ricerca/Filtri (solo per ordini) -->
+                    <div class="queue-search-bar" id="queue-search-bar" style="display: none;">
+                        <input type="text" id="queue-search-input" placeholder="🔍 Cerca per cliente/fornitore..." onkeyup="APP.filterQueueList()">
+                    </div>
                     <div class="queue-header">
                         <span class="queue-count" id="queue-count">0 elementi</span>
                     </div>
@@ -497,7 +658,19 @@
                 <!-- Tab Content: Storico -->
                 <div class="queue-tab-content" id="tab-content-storico">
                     <div class="storico-search">
-                        <input type="text" id="storico-search-input" placeholder="🔍 Cerca per cliente/fornitore..." onkeyup="APP.searchStorico()">
+                        <input type="text" id="storico-search-input" placeholder="🔍 Cerca per cliente/fornitore/numero..." onkeyup="APP.searchStorico()">
+                    </div>
+                    <div class="storico-filters" id="storico-filters">
+                        <div class="filter-row">
+                            <div class="filter-field">
+                                <label>Da data</label>
+                                <input type="date" id="storico-date-from" onchange="APP.searchStorico()">
+                            </div>
+                            <div class="filter-field">
+                                <label>A data</label>
+                                <input type="date" id="storico-date-to" onchange="APP.searchStorico()">
+                            </div>
+                        </div>
                     </div>
                     <div class="queue-tap-hint">
                         <span class="tap-icon">👆</span>

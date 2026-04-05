@@ -287,6 +287,7 @@ APP.ensureValidToken = async function() {
         if (!success) {
             APP.showToast('Sessione scaduta, effettua nuovamente il login', 'error');
             APP.showScreen('setup');
+            APP.checkSkipButton();
             return false;
         }
     }
@@ -311,6 +312,9 @@ APP.logout = function() {
     document.getElementById('step-config').classList.add('disabled');
     document.getElementById('step-load').classList.add('disabled');
     document.getElementById('login-status').textContent = '';
+    
+    // Controlla se ci sono dati per il pulsante skip
+    APP.checkSkipButton();
 };
 
 // ==========================================
@@ -406,7 +410,7 @@ APP.loadAllData = async function() {
         
         // Carica pagame.xlsx (modalità pagamento)
         progressText.textContent = 'Caricamento pagamenti...';
-        progressFill.style.width = '90%';
+        progressFill.style.width = '82%';
         try {
             const pagRaw = await APP.loadExcelFile(folderId, 'pagame.xlsx');
             const pagamenti = APP.mapPagamenti(pagRaw);
@@ -416,9 +420,31 @@ APP.loadAllData = async function() {
             console.warn('pagame.xlsx non trovato, continuo senza pagamenti');
         }
         
+        // Carica grupmerc.xlsx (gruppi merceologici)
+        progressText.textContent = 'Caricamento gruppi merceologici...';
+        progressFill.style.width = '87%';
+        try {
+            const gruppiRaw = await APP.loadExcelFile(folderId, 'grupmerc.xlsx');
+            const gruppi = APP.mapGruppiMerceologici(gruppiRaw);
+            await DB.saveGruppiMerceologici(gruppi);
+            console.log(`Caricati ${gruppi.length} gruppi merceologici`);
+        } catch (e) {
+            console.warn('grupmerc.xlsx non trovato, continuo senza gruppi');
+        }
+        
+        // Estrai locazioni dagli articoli
+        progressText.textContent = 'Estrazione locazioni...';
+        progressFill.style.width = '92%';
+        try {
+            const locazioni = await DB.extractLocazioniFromArticoli();
+            console.log(`Estratte ${locazioni.length} locazioni dagli articoli`);
+        } catch (e) {
+            console.warn('Errore estrazione locazioni:', e);
+        }
+        
         // Carica code salvate
         progressText.textContent = 'Caricamento code...';
-        progressFill.style.width = '95%';
+        progressFill.style.width = '96%';
         await APP.loadSavedQueues();
         
         // Completato
@@ -627,6 +653,21 @@ APP.mapPagamenti = function(pagRaw) {
     })).filter(pag => pag.codice); // Filtra righe vuote
 };
 
+// Mappa gruppi merceologici da grupmerc.xlsx
+APP.mapGruppiMerceologici = function(gruppiRaw) {
+    return gruppiRaw
+        .filter(g => {
+            // Solo gruppi di vendita (grm_tip_gru = 'V')
+            const tipo = (g.grm_tip_gru || g.GRM_TIP_GRU || '').toString().trim().toUpperCase();
+            return tipo === 'V';
+        })
+        .map(g => ({
+            codice: (g.grm_cod_gru || g.GRM_COD_GRU || '').toString().trim(),
+            descrizione: (g.grm_des_gru || g.GRM_DES_GRU || '').toString().trim()
+        }))
+        .filter(g => g.codice); // Filtra righe vuote
+};
+
 // Cache aliquote IVA per lookup veloce
 APP.aliquoteIvaCache = new Map();
 
@@ -710,6 +751,9 @@ APP.refreshData = async function() {
     document.getElementById('btn-load-data').disabled = false;
     document.getElementById('load-progress').classList.add('hidden');
     document.getElementById('load-status').textContent = '';
+    
+    // Controlla se ci sono dati per il pulsante skip
+    APP.checkSkipButton();
 };
 
 // ==========================================
@@ -727,11 +771,399 @@ APP.goToMenu = function() {
     APP.updateBadges();
 };
 
+// ==========================================
+// INVENTARIO - GESTIONE MODALITÀ
+// ==========================================
+
+APP.invMode = 'selector'; // selector, scansione, locazione, gruppo
+APP.invTabellareData = []; // Dati per modalità tabellare
+APP.invTabellareType = ''; // 'locazione' o 'gruppo'
+
 APP.openInventario = function() {
     APP.currentContext = 'inventario';
     APP.showScreen('inventario');
     APP.updateHeaderQueueCount('inv');
     APP.renderHistory();
+    
+    // Mostra il selettore modalità
+    APP.showModeSelector();
+};
+
+// Mostra selettore modalità inventario
+APP.showModeSelector = function() {
+    APP.invMode = 'selector';
+    document.getElementById('inv-mode-selector').style.display = 'block';
+    document.getElementById('inv-scansione-mode').style.display = 'none';
+    document.getElementById('inv-tabellare-mode').style.display = 'none';
+};
+
+// Imposta modalità scansione (default)
+APP.setInvMode = function(mode) {
+    APP.invMode = mode;
+    document.getElementById('inv-mode-selector').style.display = 'none';
+    
+    if (mode === 'scansione') {
+        document.getElementById('inv-scansione-mode').style.display = 'block';
+        document.getElementById('inv-tabellare-mode').style.display = 'none';
+    }
+};
+
+// Mostra selettore locazioni
+APP.showLocazioneSelector = async function() {
+    APP.invMode = 'locazione';
+    APP.invTabellareType = 'locazione';
+    
+    document.getElementById('inv-mode-selector').style.display = 'none';
+    document.getElementById('inv-scansione-mode').style.display = 'none';
+    document.getElementById('inv-tabellare-mode').style.display = 'block';
+    
+    // Info header
+    document.getElementById('inv-tab-info').innerHTML = `
+        <span class="info-icon">📍</span>
+        <span>Inventario per Locazione</span>
+    `;
+    
+    // Carica locazioni nel select
+    const select = document.getElementById('inv-tab-select');
+    select.innerHTML = '<option value="">-- Seleziona Locazione --</option>';
+    
+    try {
+        const locazioni = await DB.getAllLocazioni();
+        locazioni.forEach(loc => {
+            select.innerHTML += `<option value="${loc.codice}">${loc.codice}</option>`;
+        });
+    } catch(e) {
+        console.warn('Errore caricamento locazioni:', e);
+    }
+    
+    // Reset tabella
+    document.getElementById('inv-tab-tbody').innerHTML = '';
+    document.getElementById('inv-tab-actions').style.display = 'none';
+};
+
+// Mostra selettore gruppi merceologici
+APP.showGruppoSelector = async function() {
+    APP.invMode = 'gruppo';
+    APP.invTabellareType = 'gruppo';
+    
+    document.getElementById('inv-mode-selector').style.display = 'none';
+    document.getElementById('inv-scansione-mode').style.display = 'none';
+    document.getElementById('inv-tabellare-mode').style.display = 'block';
+    
+    // Info header
+    document.getElementById('inv-tab-info').innerHTML = `
+        <span class="info-icon">📦</span>
+        <span>Inventario per Gruppo Merceologico</span>
+    `;
+    
+    // Carica gruppi nel select
+    const select = document.getElementById('inv-tab-select');
+    select.innerHTML = '<option value="">-- Seleziona Gruppo --</option>';
+    
+    try {
+        const gruppi = await DB.getAllGruppiMerceologici();
+        gruppi.forEach(g => {
+            select.innerHTML += `<option value="${g.codice}">${g.codice} - ${g.descrizione}</option>`;
+        });
+    } catch(e) {
+        console.warn('Errore caricamento gruppi:', e);
+    }
+    
+    // Reset tabella
+    document.getElementById('inv-tab-tbody').innerHTML = '';
+    document.getElementById('inv-tab-actions').style.display = 'none';
+};
+
+// Carica articoli nella tabella in base alla selezione
+APP.loadArticoliTabellare = async function() {
+    const select = document.getElementById('inv-tab-select');
+    const value = select.value;
+    const tbody = document.getElementById('inv-tab-tbody');
+    const actions = document.getElementById('inv-tab-actions');
+    
+    if (!value) {
+        tbody.innerHTML = '';
+        actions.style.display = 'none';
+        return;
+    }
+    
+    try {
+        let articoli = [];
+        
+        if (APP.invTabellareType === 'locazione') {
+            articoli = await DB.getArticoliByLocazione(value);
+        } else if (APP.invTabellareType === 'gruppo') {
+            articoli = await DB.getArticoliByGruppo(value);
+        }
+        
+        APP.invTabellareData = articoli.map(art => ({
+            ...art,
+            qtyInventario: 0
+        }));
+        
+        APP.renderTabellareArticoli();
+        
+    } catch(e) {
+        console.error('Errore caricamento articoli:', e);
+        tbody.innerHTML = '<tr><td colspan="5" class="inv-tab-empty">Errore caricamento</td></tr>';
+    }
+};
+
+// Render tabella articoli
+APP.renderTabellareArticoli = function() {
+    const tbody = document.getElementById('inv-tab-tbody');
+    const actions = document.getElementById('inv-tab-actions');
+    const countEl = document.getElementById('inv-tab-count');
+    
+    if (APP.invTabellareData.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5">
+                    <div class="inv-tab-empty">
+                        <div class="inv-tab-empty-icon">📭</div>
+                        <p>Nessun articolo trovato</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        actions.style.display = 'none';
+        return;
+    }
+    
+    let html = '';
+    APP.invTabellareData.forEach((art, index) => {
+        const hasQty = art.qtyInventario > 0;
+        html += `
+            <tr>
+                <td class="cell-code">${art.codice}</td>
+                <td class="cell-desc" title="${art.des1 || ''}">${art.des1 || ''}</td>
+                <td class="cell-loc">${art.locazione || '-'}</td>
+                <td>
+                    <input type="number" 
+                           class="input-qty ${hasQty ? 'has-value' : ''}" 
+                           value="${art.qtyInventario || ''}"
+                           placeholder="0"
+                           min="0"
+                           data-index="${index}"
+                           onchange="APP.updateTabellareQty(${index}, this.value)"
+                           onfocus="this.select()">
+                </td>
+                <td>
+                    <button class="btn-quick-add" 
+                            onclick="APP.quickAddTabellare(${index})"
+                            ${hasQty ? 'disabled' : ''}
+                            title="Aggiungi 1">+</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    
+    // Conta articoli con quantità
+    const countWithQty = APP.invTabellareData.filter(a => a.qtyInventario > 0).length;
+    countEl.textContent = countWithQty;
+    actions.style.display = countWithQty > 0 ? 'block' : 'none';
+};
+
+// Aggiorna quantità nella tabella
+APP.updateTabellareQty = function(index, value) {
+    const qty = parseInt(value) || 0;
+    APP.invTabellareData[index].qtyInventario = qty;
+    
+    // Aggiorna classe input
+    const input = document.querySelector(`input[data-index="${index}"]`);
+    if (input) {
+        input.classList.toggle('has-value', qty > 0);
+    }
+    
+    // Aggiorna pulsante e contatore
+    const btn = input?.parentElement?.nextElementSibling?.querySelector('button');
+    if (btn) {
+        btn.disabled = qty > 0;
+    }
+    
+    // Aggiorna contatore azioni
+    const countWithQty = APP.invTabellareData.filter(a => a.qtyInventario > 0).length;
+    document.getElementById('inv-tab-count').textContent = countWithQty;
+    document.getElementById('inv-tab-actions').style.display = countWithQty > 0 ? 'block' : 'none';
+};
+
+// Quick add +1
+APP.quickAddTabellare = function(index) {
+    APP.invTabellareData[index].qtyInventario = 1;
+    
+    // Aggiorna input
+    const input = document.querySelector(`input[data-index="${index}"]`);
+    if (input) {
+        input.value = 1;
+        input.classList.add('has-value');
+    }
+    
+    // Disabilita pulsante
+    const btn = input?.parentElement?.nextElementSibling?.querySelector('button');
+    if (btn) {
+        btn.disabled = true;
+    }
+    
+    // Aggiorna contatore
+    const countWithQty = APP.invTabellareData.filter(a => a.qtyInventario > 0).length;
+    document.getElementById('inv-tab-count').textContent = countWithQty;
+    document.getElementById('inv-tab-actions').style.display = 'block';
+};
+
+// Conferma tutte le inventariazioni
+APP.confirmAllInventario = async function() {
+    const articoliConQty = APP.invTabellareData.filter(a => a.qtyInventario > 0);
+    
+    if (articoliConQty.length === 0) {
+        APP.showToast('Nessun articolo con quantità', 'error');
+        return;
+    }
+    
+    const conferma = confirm(`Confermi l'inventariazione di ${articoliConQty.length} articoli?`);
+    if (!conferma) return;
+    
+    // Aggiungi tutti alla coda
+    for (const art of articoliConQty) {
+        await APP.addToInventarioQueue(art, art.qtyInventario);
+    }
+    
+    APP.showToast(`${articoliConQty.length} articoli aggiunti alla coda`, 'success');
+    
+    // Reset
+    APP.invTabellareData = APP.invTabellareData.map(a => ({...a, qtyInventario: 0}));
+    APP.renderTabellareArticoli();
+    APP.updateHeaderQueueCount('inv');
+};
+
+// ==========================================
+// FILTRI AVANZATI ARTICOLI
+// ==========================================
+
+APP.articoliFilters = {}; // Stato filtri per contesto
+
+// Toggle visibilità filtri
+APP.toggleArticoliFilters = async function(context) {
+    const filtersEl = document.getElementById(`articoli-filters-${context}`);
+    const btnEl = filtersEl?.previousElementSibling?.querySelector('.btn-filter-toggle');
+    
+    if (!filtersEl) return;
+    
+    const isHidden = filtersEl.classList.contains('hidden');
+    
+    if (isHidden) {
+        // Mostra filtri e carica opzioni
+        filtersEl.classList.remove('hidden');
+        if (btnEl) btnEl.classList.add('active');
+        await APP.loadArticoliFilterOptions(context);
+    } else {
+        // Nascondi filtri
+        filtersEl.classList.add('hidden');
+        if (btnEl) btnEl.classList.remove('active');
+    }
+};
+
+// Carica opzioni nei select dei filtri
+APP.loadArticoliFilterOptions = async function(context) {
+    const gruppoSelect = document.getElementById(`filter-gruppo-${context}`);
+    const locazioneSelect = document.getElementById(`filter-locazione-${context}`);
+    
+    // Carica gruppi merceologici
+    if (gruppoSelect) {
+        try {
+            const gruppi = await DB.getAllGruppiMerceologici();
+            gruppoSelect.innerHTML = '<option value="">📦 Tutti i gruppi</option>';
+            gruppi.forEach(g => {
+                gruppoSelect.innerHTML += `<option value="${g.codice}">${g.descrizione}</option>`;
+            });
+        } catch(e) {
+            console.warn('Errore caricamento gruppi:', e);
+        }
+    }
+    
+    // Carica locazioni
+    if (locazioneSelect) {
+        try {
+            const locazioni = await DB.getAllLocazioni();
+            locazioneSelect.innerHTML = '<option value="">📍 Tutte le locazioni</option>';
+            locazioni.forEach(l => {
+                locazioneSelect.innerHTML += `<option value="${l.codice}">${l.codice}</option>`;
+            });
+        } catch(e) {
+            console.warn('Errore caricamento locazioni:', e);
+        }
+    }
+};
+
+// Applica filtri e cerca
+APP.applyArticoliFilters = function(context) {
+    const gruppo = document.getElementById(`filter-gruppo-${context}`)?.value || '';
+    const locazione = document.getElementById(`filter-locazione-${context}`)?.value || '';
+    const giacenza = document.getElementById(`filter-giacenza-${context}`)?.value || '';
+    
+    // Salva stato filtri
+    APP.articoliFilters[context] = { gruppo, locazione, giacenza };
+    
+    // Ri-esegui la ricerca con i filtri attivi
+    APP.debounceSearch(context);
+};
+
+// Reset filtri
+APP.resetArticoliFilters = function(context) {
+    const gruppoSelect = document.getElementById(`filter-gruppo-${context}`);
+    const locazioneSelect = document.getElementById(`filter-locazione-${context}`);
+    const giacenzaSelect = document.getElementById(`filter-giacenza-${context}`);
+    
+    if (gruppoSelect) gruppoSelect.value = '';
+    if (locazioneSelect) locazioneSelect.value = '';
+    if (giacenzaSelect) giacenzaSelect.value = '';
+    
+    APP.articoliFilters[context] = {};
+    
+    // Ri-esegui la ricerca senza filtri
+    APP.debounceSearch(context);
+    APP.showToast('Filtri resettati', 'success');
+};
+
+// Filtra risultati articoli in base ai filtri attivi
+APP.filterArticoliResults = function(articoli, context) {
+    const filters = APP.articoliFilters[context] || {};
+    
+    if (!filters.gruppo && !filters.locazione && !filters.giacenza) {
+        return articoli; // Nessun filtro attivo
+    }
+    
+    return articoli.filter(art => {
+        // Filtro gruppo merceologico
+        if (filters.gruppo) {
+            const artGruppo = (art.gruppoMerc || art.gruppo || '').toString();
+            if (artGruppo !== filters.gruppo) return false;
+        }
+        
+        // Filtro locazione
+        if (filters.locazione) {
+            if (art.locazione !== filters.locazione) return false;
+        }
+        
+        // Filtro giacenza
+        if (filters.giacenza) {
+            const giac = parseFloat(art.giacenza) || 0;
+            switch (filters.giacenza) {
+                case 'positive':
+                    if (giac <= 0) return false;
+                    break;
+                case 'zero':
+                    if (giac !== 0) return false;
+                    break;
+                case 'negative':
+                    if (giac >= 0) return false;
+                    break;
+            }
+        }
+        
+        return true;
+    });
 };
 
 APP.openOrdiniClienti = async function() {
@@ -888,13 +1320,14 @@ APP.debounceSearch = function(context) {
 };
 
 APP.performSearch = async function(context) {
-    let inputId, resultsId, searchFn;
+    let inputId, resultsId, searchFn, isArticoli = false;
     
     switch (context) {
         case 'inv':
             inputId = 'search-inv';
             resultsId = 'results-inv';
             searchFn = DB.searchArticoli;
+            isArticoli = true;
             break;
         case 'cliente':
             inputId = 'search-cliente';
@@ -910,24 +1343,48 @@ APP.performSearch = async function(context) {
             inputId = 'search-art-ord-cli';
             resultsId = 'results-art-ord-cli';
             searchFn = DB.searchArticoli;
+            isArticoli = true;
             break;
         case 'artOrdFor':
             inputId = 'search-art-ord-for';
             resultsId = 'results-art-ord-for';
             searchFn = DB.searchArticoli;
+            isArticoli = true;
             break;
     }
     
     const query = document.getElementById(inputId).value.trim();
     const resultsEl = document.getElementById(resultsId);
     
-    if (query.length < 2) {
+    // Verifica se ci sono filtri attivi
+    const hasFilters = APP.articoliFilters[context] && 
+        (APP.articoliFilters[context].gruppo || 
+         APP.articoliFilters[context].locazione || 
+         APP.articoliFilters[context].giacenza);
+    
+    if (query.length < 2 && !hasFilters) {
         resultsEl.innerHTML = '';
         return;
     }
     
     try {
-        const results = await searchFn(query, 30);
+        let results;
+        
+        // Se ci sono filtri ma nessuna query, cerca con stringa vuota per ottenere tutti
+        if (query.length < 2 && hasFilters && isArticoli) {
+            results = await DB.getAllArticoli();
+        } else {
+            results = await searchFn(query, 100); // Aumenta limite per filtraggio
+        }
+        
+        // Applica filtri articoli se attivi
+        if (isArticoli && hasFilters) {
+            results = APP.filterArticoliResults(results, context);
+        }
+        
+        // Limita a 30 risultati per il rendering
+        results = results.slice(0, 30);
+        
         APP.renderSearchResults(results, resultsEl, context);
     } catch (e) {
         console.error('Errore ricerca:', e);
@@ -1158,7 +1615,7 @@ APP.selectArticolo = async function(codice, context) {
     APP.handleSelectArticolo(articolo, context);
 };
 
-APP.processArticoloWithQty = async function(qty, prezzoInserito = null) {
+APP.processArticoloWithQty = async function(qty, prezzoInserito = null, locazioneInserita = null) {
     const articolo = APP.selectedArticolo;
     const context = APP.qtyContext;
     
@@ -1166,8 +1623,22 @@ APP.processArticoloWithQty = async function(qty, prezzoInserito = null) {
     
     switch (context) {
         case 'inv':
-            await APP.addToInventarioQueue(articolo, qty);
+            // Usa locazione inserita se presente, altrimenti quella dell'articolo
+            const locazione = locazioneInserita || articolo.locazione;
+            await APP.addToInventarioQueue(articolo, qty, locazione);
             APP.addToHistory(articolo, qty);
+            
+            // Se nuova locazione, salvala nel DB
+            if (locazioneInserita && locazioneInserita.trim()) {
+                try {
+                    await DB.addLocazione({ 
+                        codice: locazioneInserita.trim(), 
+                        descrizione: locazioneInserita.trim() 
+                    });
+                } catch(e) {
+                    // Locazione già esistente, ignora
+                }
+            }
             break;
         case 'artOrdCli':
             APP.addRigaOrdineCliente(articolo, qty);
@@ -1190,13 +1661,37 @@ APP.processArticoloWithQty = async function(qty, prezzoInserito = null) {
 // MODAL QUANTITÀ (NUMPAD)
 // ==========================================
 
-APP.openQtyModal = function() {
+APP.openQtyModal = async function() {
     const articolo = APP.selectedArticolo;
     if (!articolo) return;
     
     document.getElementById('qty-articolo-desc').textContent = articolo.des1;
     document.getElementById('qty-articolo-code').textContent = articolo.codice;
     document.getElementById('numpad-value').textContent = '1';
+    
+    // Gestione campo locazione (solo per inventario)
+    const locazioneContainer = document.getElementById('qty-locazione-container');
+    const locazioneInput = document.getElementById('qty-locazione-input');
+    const locazioniList = document.getElementById('locazioni-list');
+    
+    if (APP.currentContext === 'inventario') {
+        locazioneContainer.classList.remove('hidden');
+        // Pre-compila con locazione articolo
+        locazioneInput.value = articolo.locazione || '';
+        
+        // Carica locazioni disponibili nel datalist
+        try {
+            const locazioni = await DB.getAllLocazioni();
+            locazioniList.innerHTML = locazioni.map(l => 
+                `<option value="${l.codice}">`
+            ).join('');
+        } catch(e) {
+            locazioniList.innerHTML = '';
+        }
+    } else {
+        locazioneContainer.classList.add('hidden');
+        locazioneInput.value = '';
+    }
     
     // Mostra campo prezzo solo per ordini fornitori
     const prezzoContainer = document.getElementById('qty-prezzo-container');
@@ -1213,6 +1708,11 @@ APP.openQtyModal = function() {
     }
     
     document.getElementById('modal-qty').classList.remove('hidden');
+};
+
+// Pulisce campo locazione
+APP.clearLocazioneInput = function() {
+    document.getElementById('qty-locazione-input').value = '';
 };
 
 APP.closeQtyModal = function() {
@@ -1269,9 +1769,18 @@ APP.numpadConfirm = function() {
         }
     }
     
+    // Prendi locazione inserita (solo per inventario)
+    let locazioneInserita = null;
+    if (APP.currentContext === 'inventario') {
+        const locazioneInput = document.getElementById('qty-locazione-input');
+        if (locazioneInput && locazioneInput.value.trim()) {
+            locazioneInserita = locazioneInput.value.trim();
+        }
+    }
+    
     // PRIMA processo l'articolo, POI chiudo il modal
     document.getElementById('modal-qty').classList.add('hidden');
-    APP.processArticoloWithQty(qty, prezzoInserito);
+    APP.processArticoloWithQty(qty, prezzoInserito, locazioneInserita);
 };
 
 // ==========================================
@@ -1407,11 +1916,12 @@ APP.toggleFastScan = function(mode) {
 // INVENTARIO QUEUE
 // ==========================================
 
-APP.addToInventarioQueue = async function(articolo, qty) {
+APP.addToInventarioQueue = async function(articolo, qty, locazione = null) {
     const item = {
         codice: articolo.codice,
         des1: articolo.des1,
-        locazione: articolo.locazione,
+        locazione: locazione || articolo.locazione || '',
+        gruppoMerc: articolo.gruppoMerc || articolo.gruppo || '',
         qty: qty,
         timestamp: Date.now()
     };
@@ -1921,8 +2431,9 @@ APP.updateQueueTabBadges = function() {
 };
 
 // Switch tra tab
-APP.switchQueueTab = function(tab) {
+APP.switchQueueTab = async function(tab) {
     APP.currentQueueTab = tab;
+    APP.queueDataFiltered = null; // Reset filtri
     
     // Aggiorna stato tab
     document.querySelectorAll('.queue-tab').forEach(t => {
@@ -1936,57 +2447,109 @@ APP.switchQueueTab = function(tab) {
     
     // Render contenuto
     if (tab === 'coda') {
-        APP.renderQueueList();
+        await APP.renderQueueList();
     } else {
         APP.renderStoricoList();
     }
 };
 
 // Render lista coda
-APP.renderQueueList = function() {
+APP.renderQueueList = async function() {
     const countEl = document.getElementById('queue-count');
     const listEl = document.getElementById('queue-list');
     const actionsEl = document.getElementById('queue-actions');
     const hintEl = document.getElementById('queue-tap-hint');
+    const searchBar = document.getElementById('queue-search-bar');
+    const invFilters = document.getElementById('inv-gestione-filters');
     
-    countEl.textContent = `${APP.queueData.length} elementi`;
+    // Gestione filtri in base al contesto
+    if (APP.queueContext === 'inventario') {
+        searchBar.style.display = 'none';
+        
+        // Mostra filtri inventario se ci sono elementi
+        if (APP.queueData.length > 0) {
+            invFilters.style.display = 'flex';
+            await APP.loadInvFilters();
+        } else {
+            invFilters.style.display = 'none';
+        }
+    } else {
+        invFilters.style.display = 'none';
+        
+        // Mostra barra ricerca solo per ordini con più di 3 elementi
+        if (APP.queueData.length > 3) {
+            searchBar.style.display = 'block';
+        } else {
+            searchBar.style.display = 'none';
+        }
+    }
     
-    if (APP.queueData.length === 0) {
+    // Reset campo ricerca
+    const searchInput = document.getElementById('queue-search-input');
+    if (searchInput) searchInput.value = '';
+    
+    // Render lista (usa dati filtrati se disponibili)
+    const dataToRender = APP.queueDataFiltered || APP.queueData;
+    
+    countEl.textContent = APP.queueDataFiltered 
+        ? `${dataToRender.length} di ${APP.queueData.length} elementi`
+        : `${APP.queueData.length} elementi`;
+    
+    if (dataToRender.length === 0) {
         listEl.innerHTML = '<div class="empty-message">Nessun elemento in coda</div>';
         hintEl.style.display = 'none';
     } else if (APP.queueContext === 'inventario') {
         hintEl.style.display = 'flex';
-        listEl.innerHTML = APP.queueData.map((item, index) => `
-            <div class="queue-item selectable" onclick="APP.selectQueueItem(${index})">
-                <div class="queue-item-info">
-                    <div class="queue-item-code">${item.codice}</div>
-                    <div class="queue-item-desc">${item.des1 || ''}</div>
-                    <div class="queue-item-loc">📍 ${item.locazione || '-'}</div>
+        // Aggiorna testo hint per inventario
+        hintEl.innerHTML = `
+            <span class="tap-icon">👆</span>
+            <span>Tocca un'inventariazione per modificare o eliminare</span>
+        `;
+        listEl.innerHTML = dataToRender.map((item) => {
+            // Trova indice originale
+            const originalIndex = APP.queueData.findIndex(i => i.timestamp === item.timestamp);
+            return `
+                <div class="queue-item selectable" onclick="APP.selectQueueItem(${originalIndex})">
+                    <div class="queue-item-info">
+                        <div class="queue-item-code">${item.codice}</div>
+                        <div class="queue-item-desc">${item.des1 || ''}</div>
+                        <div class="queue-item-loc">📍 ${item.locazione || '-'}</div>
+                    </div>
+                    <div class="queue-item-qty">${item.qty}</div>
+                    <div class="queue-item-status">${item.synced ? '✓' : ''}</div>
                 </div>
-                <div class="queue-item-qty">${item.qty}</div>
-                <div class="queue-item-status">${item.synced ? '✓' : ''}</div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } else {
         hintEl.style.display = 'flex';
-        listEl.innerHTML = APP.queueData.map((ord, index) => `
-            <div class="ordine-item selectable" onclick="APP.selectQueueItem(${index})">
-                <div class="ordine-header">
-                    <span class="ordine-num">${ord.registro}/${ord.numero}</span>
-                    <span class="ordine-data">${APP.formatDate(new Date(ord.data))}</span>
-                    <span class="ordine-status ${ord.synced ? 'synced' : ''}">${ord.synced ? '✓ Sync' : '○'}</span>
+        // Aggiorna testo hint per ordini
+        hintEl.innerHTML = `
+            <span class="tap-icon">👆</span>
+            <span>Tocca un ordine per stampare, modificare o condividere</span>
+        `;
+        listEl.innerHTML = dataToRender.map((ord) => {
+            const originalIndex = APP.queueData.findIndex(o => o.timestamp === ord.timestamp);
+            return `
+                <div class="ordine-item selectable" onclick="APP.selectQueueItem(${originalIndex})">
+                    <div class="ordine-header">
+                        <span class="ordine-num">${ord.registro}/${ord.numero}</span>
+                        <span class="ordine-data">${APP.formatDate(new Date(ord.data))}</span>
+                        <span class="ordine-status ${ord.synced ? 'synced' : ''}">${ord.synced ? '✓ Sync' : '○'}</span>
+                    </div>
+                    <div class="ordine-body">
+                        <span class="ordine-soggetto">
+                            ${APP.queueContext === 'ordiniClienti' ? ord.cliente.ragSoc1 : ord.fornitore.ragSoc1}
+                        </span>
+                        <span class="ordine-righe">${ord.righe.length} art. - € ${ord.righe.reduce((s, r) => s + r.qty * r.prezzo, 0).toFixed(2)}</span>
+                    </div>
                 </div>
-                <div class="ordine-body">
-                    <span class="ordine-soggetto">
-                        ${APP.queueContext === 'ordiniClienti' ? ord.cliente.ragSoc1 : ord.fornitore.ragSoc1}
-                    </span>
-                    <span class="ordine-righe">${ord.righe.length} art. - € ${ord.righe.reduce((s, r) => s + r.qty * r.prezzo, 0).toFixed(2)}</span>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
     
-    // Render azioni
+    // Render azioni - testo differenziato
+    const labelSvuota = APP.queueContext === 'inventario' ? '🗑️ Svuota Inventariazioni' : '🗑️ Svuota Coda';
+    
     actionsEl.innerHTML = `
         <button class="btn-primary" onclick="APP.syncQueue('${APP.queueContext}')">
             ☁️ Sincronizza su Drive
@@ -1996,10 +2559,98 @@ APP.renderQueueList = function() {
                 📄 Report PDF
             </button>
             <button class="btn-danger" onclick="APP.clearQueue('${APP.queueContext}')">
-                🗑️ Svuota Coda
+                ${labelSvuota}
             </button>
         </div>
     `;
+};
+
+// Carica filtri inventario
+APP.loadInvFilters = async function() {
+    const locSelect = document.getElementById('inv-filter-locazione');
+    const gruppoSelect = document.getElementById('inv-filter-gruppo');
+    
+    // Estrai locazioni uniche dalla coda
+    const locazioni = [...new Set(APP.queueData.map(i => i.locazione).filter(l => l))];
+    locSelect.innerHTML = '<option value="">📍 Tutte le locazioni</option>';
+    locazioni.sort().forEach(loc => {
+        locSelect.innerHTML += `<option value="${loc}">${loc}</option>`;
+    });
+    
+    // Carica gruppi merceologici
+    try {
+        const gruppi = await DB.getAllGruppiMerceologici();
+        gruppoSelect.innerHTML = '<option value="">📦 Tutti i gruppi</option>';
+        gruppi.forEach(g => {
+            gruppoSelect.innerHTML += `<option value="${g.codice}">${g.descrizione}</option>`;
+        });
+    } catch(e) {
+        gruppoSelect.innerHTML = '<option value="">📦 Tutti i gruppi</option>';
+    }
+};
+
+// Filtra inventariazioni
+APP.filterInventarioQueue = async function() {
+    const locFilter = document.getElementById('inv-filter-locazione').value;
+    const gruppoFilter = document.getElementById('inv-filter-gruppo').value;
+    
+    // Se nessun filtro, mostra tutto
+    if (!locFilter && !gruppoFilter) {
+        APP.queueDataFiltered = null;
+        APP.renderQueueList();
+        return;
+    }
+    
+    // Ottieni articoli del gruppo se filtro gruppo attivo
+    let articoliGruppo = null;
+    if (gruppoFilter) {
+        try {
+            const articoli = await DB.getArticoliByGruppo(gruppoFilter);
+            articoliGruppo = new Set(articoli.map(a => a.codice));
+        } catch(e) {
+            articoliGruppo = new Set();
+        }
+    }
+    
+    // Filtra
+    APP.queueDataFiltered = APP.queueData.filter(item => {
+        // Filtro locazione
+        if (locFilter && item.locazione !== locFilter) {
+            return false;
+        }
+        
+        // Filtro gruppo
+        if (articoliGruppo && !articoliGruppo.has(item.codice)) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    // Re-render solo la lista
+    const countEl = document.getElementById('queue-count');
+    const listEl = document.getElementById('queue-list');
+    
+    countEl.textContent = `${APP.queueDataFiltered.length} di ${APP.queueData.length} elementi`;
+    
+    if (APP.queueDataFiltered.length === 0) {
+        listEl.innerHTML = '<div class="empty-message">Nessun elemento corrisponde ai filtri</div>';
+    } else {
+        listEl.innerHTML = APP.queueDataFiltered.map((item) => {
+            const originalIndex = APP.queueData.findIndex(i => i.timestamp === item.timestamp);
+            return `
+                <div class="queue-item selectable" onclick="APP.selectQueueItem(${originalIndex})">
+                    <div class="queue-item-info">
+                        <div class="queue-item-code">${item.codice}</div>
+                        <div class="queue-item-desc">${item.des1 || ''}</div>
+                        <div class="queue-item-loc">📍 ${item.locazione || '-'}</div>
+                    </div>
+                    <div class="queue-item-qty">${item.qty}</div>
+                    <div class="queue-item-status">${item.synced ? '✓' : ''}</div>
+                </div>
+            `;
+        }).join('');
+    }
 };
 
 // Render lista storico
@@ -2044,17 +2695,63 @@ APP.renderStoricoList = function(filteredData = null) {
     }).join('');
 };
 
-// Ricerca nello storico
+// Ricerca nello storico con filtri avanzati
 APP.searchStorico = function() {
-    const query = document.getElementById('storico-search-input').value.trim();
+    const query = document.getElementById('storico-search-input').value.trim().toLowerCase();
+    const dateFrom = document.getElementById('storico-date-from').value;
+    const dateTo = document.getElementById('storico-date-to').value;
     
-    if (!query) {
+    // Se nessun filtro attivo, mostra tutto
+    if (!query && !dateFrom && !dateTo) {
         APP.renderStoricoList();
         return;
     }
     
-    const queryLower = query.toLowerCase();
     const filtered = APP.storicoData.filter(ord => {
+        // Filtro testo
+        if (query) {
+            const soggetto = ord.cliente || ord.fornitore;
+            if (!soggetto) return false;
+            
+            const ragSoc = (soggetto.ragSoc1 || '').toLowerCase();
+            const codice = (soggetto.codice || '').toLowerCase();
+            const numero = (ord.numero || '').toString();
+            const registro = (ord.registro || '').toLowerCase();
+            
+            const matchText = ragSoc.includes(query) || 
+                              codice.includes(query) ||
+                              numero.includes(query) ||
+                              registro.includes(query);
+            
+            if (!matchText) return false;
+        }
+        
+        // Filtro data
+        if (dateFrom || dateTo) {
+            const ordDate = new Date(ord.data);
+            const ordDateStr = ordDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            
+            if (dateFrom && ordDateStr < dateFrom) return false;
+            if (dateTo && ordDateStr > dateTo) return false;
+        }
+        
+        return true;
+    });
+    
+    APP.renderStoricoList(filtered);
+};
+
+// Filtro lista coda (per ordini)
+APP.filterQueueList = function() {
+    const query = document.getElementById('queue-search-input').value.trim().toLowerCase();
+    
+    if (!query) {
+        APP.renderQueueList();
+        return;
+    }
+    
+    // Filtra i dati
+    const filtered = APP.queueData.filter(ord => {
         const soggetto = ord.cliente || ord.fornitore;
         if (!soggetto) return false;
         
@@ -2062,12 +2759,46 @@ APP.searchStorico = function() {
         const codice = (soggetto.codice || '').toLowerCase();
         const numero = (ord.numero || '').toString();
         
-        return ragSoc.includes(queryLower) || 
-               codice.includes(queryLower) ||
-               numero.includes(queryLower);
+        return ragSoc.includes(query) || 
+               codice.includes(query) ||
+               numero.includes(query);
     });
     
-    APP.renderStoricoList(filtered);
+    // Render filtrato
+    APP.renderQueueListFiltered(filtered);
+};
+
+// Render lista coda filtrata
+APP.renderQueueListFiltered = function(data) {
+    const countEl = document.getElementById('queue-count');
+    const listEl = document.getElementById('queue-list');
+    
+    countEl.textContent = `${data.length} di ${APP.queueData.length} elementi`;
+    
+    if (data.length === 0) {
+        listEl.innerHTML = '<div class="empty-message">Nessun risultato</div>';
+        return;
+    }
+    
+    listEl.innerHTML = data.map((ord) => {
+        // Trova l'indice originale
+        const originalIndex = APP.queueData.findIndex(o => o.timestamp === ord.timestamp);
+        return `
+            <div class="ordine-item selectable" onclick="APP.selectQueueItem(${originalIndex})">
+                <div class="ordine-header">
+                    <span class="ordine-num">${ord.registro}/${ord.numero}</span>
+                    <span class="ordine-data">${APP.formatDate(new Date(ord.data))}</span>
+                    <span class="ordine-status ${ord.synced ? 'synced' : ''}">${ord.synced ? '✓ Sync' : '○'}</span>
+                </div>
+                <div class="ordine-body">
+                    <span class="ordine-soggetto">
+                        ${APP.queueContext === 'ordiniClienti' ? ord.cliente.ragSoc1 : ord.fornitore.ragSoc1}
+                    </span>
+                    <span class="ordine-righe">${ord.righe.length} art. - € ${ord.righe.reduce((s, r) => s + r.qty * r.prezzo, 0).toFixed(2)}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
 };
 
 // Mostra dettaglio ordine storico
