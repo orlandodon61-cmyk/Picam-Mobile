@@ -1,669 +1,997 @@
-/**
- * PICAM PWA - Database Module v3.5
- * IndexedDB per storage locale
- */
+// ==========================================
+// PICAM v3.6 - Database Module (IndexedDB)
+// ==========================================
 
-const DB = {
-    name: 'PicamDB',
-    version: 5,
-    db: null
-};
+const DB_NAME = 'PicamDB';
+const DB_VERSION = 5; // v5: Fix sync, gruppi, getAllArticoliByLocazione/Gruppo
 
-// Inizializza database
-DB.init = function() {
+let db = null;
+
+// ==========================================
+// INIZIALIZZAZIONE DATABASE
+// ==========================================
+
+function initDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB.name, DB.version);
-        
-        request.onerror = () => reject(request.error);
-        
-        request.onsuccess = () => {
-            DB.db = request.result;
-            console.log('DB inizializzato:', DB.name, 'v' + DB.version);
-            resolve(DB.db);
+        if (db) {
+            resolve(db);
+            return;
+        }
+
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = () => {
+            console.error('Errore apertura IndexedDB:', request.error);
+            reject(request.error);
         };
-        
+
+        request.onsuccess = () => {
+            db = request.result;
+            console.log('IndexedDB aperto con successo');
+            resolve(db);
+        };
+
         request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            
-            // Articoli
-            if (!db.objectStoreNames.contains('articoli')) {
-                const store = db.createObjectStore('articoli', { keyPath: 'codice' });
-                store.createIndex('descrizione', 'des1', { unique: false });
-                store.createIndex('barcode', 'barcode', { unique: false });
-                store.createIndex('gruppo', 'gruppoMerc', { unique: false });
-                store.createIndex('locazione', 'locazione', { unique: false });
+            const database = event.target.result;
+            console.log('Creazione/aggiornamento schema IndexedDB...');
+
+            // Store ARTICOLI con indici
+            if (!database.objectStoreNames.contains('articoli')) {
+                const articoliStore = database.createObjectStore('articoli', { keyPath: 'codice' });
+                articoliStore.createIndex('barcode', 'barcode', { unique: false });
+                articoliStore.createIndex('des1', 'des1', { unique: false });
+                articoliStore.createIndex('gruppo', 'gruppo', { unique: false });
+                articoliStore.createIndex('locazione', 'locazione', { unique: false });
+            }
+
+            // Store CLIENTI con indici
+            if (!database.objectStoreNames.contains('clienti')) {
+                const clientiStore = database.createObjectStore('clienti', { keyPath: 'codice' });
+                clientiStore.createIndex('ragSoc1', 'ragSoc1', { unique: false });
+                clientiStore.createIndex('partitaIva', 'partitaIva', { unique: false });
+            }
+
+            // Store FORNITORI con indici
+            if (!database.objectStoreNames.contains('fornitori')) {
+                const fornitoriStore = database.createObjectStore('fornitori', { keyPath: 'codice' });
+                fornitoriStore.createIndex('ragSoc1', 'ragSoc1', { unique: false });
+                fornitoriStore.createIndex('partitaIva', 'partitaIva', { unique: false });
+            }
+
+            // Store CODA INVENTARIO
+            if (!database.objectStoreNames.contains('queueInventario')) {
+                database.createObjectStore('queueInventario', { keyPath: 'id', autoIncrement: true });
+            }
+
+            // Store CODA ORDINI CLIENTI
+            if (!database.objectStoreNames.contains('queueOrdiniClienti')) {
+                database.createObjectStore('queueOrdiniClienti', { keyPath: 'id', autoIncrement: true });
+            }
+
+            // Store CODA ORDINI FORNITORI
+            if (!database.objectStoreNames.contains('queueOrdiniFornitori')) {
+                database.createObjectStore('queueOrdiniFornitori', { keyPath: 'id', autoIncrement: true });
+            }
+
+            // Store METADATA (contatori, config, ecc.)
+            if (!database.objectStoreNames.contains('metadata')) {
+                database.createObjectStore('metadata', { keyPath: 'key' });
             }
             
-            // Codici a barre
-            if (!db.objectStoreNames.contains('codbar')) {
-                const store = db.createObjectStore('codbar', { keyPath: 'barcode' });
-                store.createIndex('codice', 'codice', { unique: false });
+            // Store ALIQUOTE IVA (v2)
+            if (!database.objectStoreNames.contains('aliquoteIva')) {
+                const ivaStore = database.createObjectStore('aliquoteIva', { keyPath: 'codice' });
+                ivaStore.createIndex('aliquota', 'aliquota', { unique: false });
             }
             
-            // Giacenze per deposito
-            if (!db.objectStoreNames.contains('giacenze')) {
-                const store = db.createObjectStore('giacenze', { keyPath: ['codice', 'deposito'] });
-                store.createIndex('codice', 'codice', { unique: false });
-                store.createIndex('deposito', 'deposito', { unique: false });
+            // Store PAGAMENTI (v2)
+            if (!database.objectStoreNames.contains('pagamenti')) {
+                const pagStore = database.createObjectStore('pagamenti', { keyPath: 'codice' });
+                pagStore.createIndex('descrizione', 'descrizione', { unique: false });
             }
             
-            // Clienti
-            if (!db.objectStoreNames.contains('clienti')) {
-                const store = db.createObjectStore('clienti', { keyPath: 'codice' });
-                store.createIndex('ragSoc', 'ragSoc1', { unique: false });
+            // Store STORICO ORDINI CLIENTI (v3)
+            if (!database.objectStoreNames.contains('storicoOrdiniClienti')) {
+                const storicoCliStore = database.createObjectStore('storicoOrdiniClienti', { keyPath: 'id', autoIncrement: true });
+                storicoCliStore.createIndex('timestamp', 'timestamp', { unique: false });
+                storicoCliStore.createIndex('clienteCodice', 'cliente.codice', { unique: false });
             }
             
-            // Fornitori
-            if (!db.objectStoreNames.contains('fornitori')) {
-                const store = db.createObjectStore('fornitori', { keyPath: 'codice' });
-                store.createIndex('ragSoc', 'ragSoc1', { unique: false });
+            // Store STORICO ORDINI FORNITORI (v3)
+            if (!database.objectStoreNames.contains('storicoOrdiniFornitori')) {
+                const storicoForStore = database.createObjectStore('storicoOrdiniFornitori', { keyPath: 'id', autoIncrement: true });
+                storicoForStore.createIndex('timestamp', 'timestamp', { unique: false });
+                storicoForStore.createIndex('fornitoreCodice', 'fornitore.codice', { unique: false });
             }
             
-            // Aliquote IVA
-            if (!db.objectStoreNames.contains('iva')) {
-                db.createObjectStore('iva', { keyPath: 'codice' });
+            // Store GRUPPI MERCEOLOGICI (v4)
+            if (!database.objectStoreNames.contains('gruppiMerceologici')) {
+                const gruppiStore = database.createObjectStore('gruppiMerceologici', { keyPath: 'codice' });
+                gruppiStore.createIndex('descrizione', 'descrizione', { unique: false });
             }
             
-            // Pagamenti
-            if (!db.objectStoreNames.contains('pagamenti')) {
-                db.createObjectStore('pagamenti', { keyPath: 'codice' });
+            // Store LOCAZIONI (v4) - per gestione locazioni personalizzate
+            if (!database.objectStoreNames.contains('locazioni')) {
+                const locStore = database.createObjectStore('locazioni', { keyPath: 'codice' });
             }
-            
-            // Gruppi merceologici
-            if (!db.objectStoreNames.contains('gruppiMerc')) {
-                db.createObjectStore('gruppiMerc', { keyPath: 'codice' });
-            }
-            
-            // Locazioni (estratte dagli articoli)
-            if (!db.objectStoreNames.contains('locazioni')) {
-                db.createObjectStore('locazioni', { keyPath: 'codice' });
-            }
-            
-            // Code
-            if (!db.objectStoreNames.contains('queueInventario')) {
-                const store = db.createObjectStore('queueInventario', { keyPath: 'id', autoIncrement: true });
-                store.createIndex('codice', 'codice', { unique: false });
-                store.createIndex('synced', 'synced', { unique: false });
-            }
-            
-            if (!db.objectStoreNames.contains('queueOrdiniClienti')) {
-                const store = db.createObjectStore('queueOrdiniClienti', { keyPath: 'id', autoIncrement: true });
-                store.createIndex('synced', 'synced', { unique: false });
-            }
-            
-            if (!db.objectStoreNames.contains('queueOrdiniFornitori')) {
-                const store = db.createObjectStore('queueOrdiniFornitori', { keyPath: 'id', autoIncrement: true });
-                store.createIndex('synced', 'synced', { unique: false });
-            }
-            
-            // Storico
-            if (!db.objectStoreNames.contains('storicoInventario')) {
-                const store = db.createObjectStore('storicoInventario', { keyPath: 'id', autoIncrement: true });
-                store.createIndex('data', 'data', { unique: false });
-            }
-            
-            if (!db.objectStoreNames.contains('storicoOrdiniClienti')) {
-                const store = db.createObjectStore('storicoOrdiniClienti', { keyPath: 'id', autoIncrement: true });
-                store.createIndex('data', 'data', { unique: false });
-            }
-            
-            if (!db.objectStoreNames.contains('storicoOrdiniFornitori')) {
-                const store = db.createObjectStore('storicoOrdiniFornitori', { keyPath: 'id', autoIncrement: true });
-                store.createIndex('data', 'data', { unique: false });
-            }
-            
-            console.log('DB upgrade completato');
+
+            console.log('Schema IndexedDB creato');
         };
     });
-};
+}
 
 // ==========================================
 // OPERAZIONI GENERICHE
 // ==========================================
 
-DB.add = function(storeName, data) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        const request = store.add(data);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-};
+function getStore(storeName, mode = 'readonly') {
+    if (!db) throw new Error('Database non inizializzato');
+    const transaction = db.transaction(storeName, mode);
+    return transaction.objectStore(storeName);
+}
 
-DB.put = function(storeName, data) {
+function clearStore(storeName) {
     return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        const request = store.put(data);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.get = function(storeName, key) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readonly');
-        const store = tx.objectStore(storeName);
-        const request = store.get(key);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.getAll = function(storeName) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readonly');
-        const store = tx.objectStore(storeName);
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.delete = function(storeName, key) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        const request = store.delete(key);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.clear = function(storeName) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
+        const store = getStore(storeName, 'readwrite');
         const request = store.clear();
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
     });
-};
+}
 
-DB.count = function(storeName) {
+function countStore(storeName) {
     return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readonly');
-        const store = tx.objectStore(storeName);
+        const store = getStore(storeName, 'readonly');
         const request = store.count();
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
     });
-};
-
-// ==========================================
-// BULK OPERATIONS
-// ==========================================
-
-DB.bulkPut = function(storeName, dataArray) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        let count = 0;
-        
-        dataArray.forEach(item => {
-            const request = store.put(item);
-            request.onsuccess = () => count++;
-        });
-        
-        tx.oncomplete = () => resolve(count);
-        tx.onerror = () => reject(tx.error);
-    });
-};
+}
 
 // ==========================================
 // ARTICOLI
 // ==========================================
 
-DB.searchArticoli = function(query, limit = 20) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction('articoli', 'readonly');
-        const store = tx.objectStore('articoli');
-        const request = store.getAll();
-        
-        request.onsuccess = () => {
-            const results = request.result;
-            const q = query.toLowerCase();
-            
-            const filtered = results.filter(art => 
-                art.codice.toLowerCase().includes(q) ||
-                (art.des1 && art.des1.toLowerCase().includes(q)) ||
-                (art.barcode && art.barcode.includes(q))
-            );
-            
-            resolve(filtered.slice(0, limit));
-        };
-        
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.getArticoloByBarcode = function(barcode) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            // Prima cerca nella tabella codbar
-            const tx1 = DB.db.transaction('codbar', 'readonly');
-            const store1 = tx1.objectStore('codbar');
-            const request1 = store1.get(barcode);
-            
-            request1.onsuccess = async () => {
-                if (request1.result) {
-                    // Trovato in codbar, prendi l'articolo
-                    const articolo = await DB.get('articoli', request1.result.codice);
-                    resolve(articolo);
-                } else {
-                    // Cerca direttamente negli articoli per barcode
-                    const tx2 = DB.db.transaction('articoli', 'readonly');
-                    const store2 = tx2.objectStore('articoli');
-                    const index = store2.index('barcode');
-                    const request2 = index.get(barcode);
-                    
-                    request2.onsuccess = () => resolve(request2.result);
-                    request2.onerror = () => reject(request2.error);
-                }
-            };
-            
-            request1.onerror = () => reject(request1.error);
-        } catch (e) {
-            reject(e);
-        }
-    });
-};
-
-DB.getArticoliByGruppo = function(gruppoCode) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction('articoli', 'readonly');
-        const store = tx.objectStore('articoli');
-        const index = store.index('gruppo');
-        const request = index.getAll(gruppoCode);
-        
-        request.onsuccess = () => {
-            // Ordina per codice
-            const results = request.result.sort((a, b) => a.codice.localeCompare(b.codice));
-            resolve(results);
-        };
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.getArticoliByLocazione = function(locazioneCode) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction('articoli', 'readonly');
-        const store = tx.objectStore('articoli');
-        const index = store.index('locazione');
-        const request = index.getAll(locazioneCode);
-        
-        request.onsuccess = () => {
-            // Ordina per codice
-            const results = request.result.sort((a, b) => a.codice.localeCompare(b.codice));
-            resolve(results);
-        };
-        request.onerror = () => reject(request.error);
-    });
-};
-
-// Tutti gli articoli ordinati per locazione+codice
-DB.getAllArticoliByLocazione = function() {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction('articoli', 'readonly');
-        const store = tx.objectStore('articoli');
-        const request = store.getAll();
-        
-        request.onsuccess = () => {
-            const results = request.result;
-            
-            // Ordina: prima quelli con locazione (alfabeticamente), poi quelli senza
-            results.sort((a, b) => {
-                const locA = a.locazione || '';
-                const locB = b.locazione || '';
-                
-                // Se uno ha locazione e l'altro no
-                if (locA && !locB) return -1;
-                if (!locA && locB) return 1;
-                
-                // Entrambi con o senza locazione: ordina per locazione poi codice
-                if (locA !== locB) return locA.localeCompare(locB);
-                return a.codice.localeCompare(b.codice);
-            });
-            
-            resolve(results);
-        };
-        request.onerror = () => reject(request.error);
-    });
-};
-
-// Tutti gli articoli ordinati per gruppo+codice
-DB.getAllArticoliByGruppo = function() {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction('articoli', 'readonly');
-        const store = tx.objectStore('articoli');
-        const request = store.getAll();
-        
-        request.onsuccess = () => {
-            const results = request.result;
-            
-            // Ordina per gruppo merceologico poi codice
-            results.sort((a, b) => {
-                const grpA = a.gruppoMerc || '';
-                const grpB = b.gruppoMerc || '';
-                
-                if (grpA !== grpB) return grpA.localeCompare(grpB);
-                return a.codice.localeCompare(b.codice);
-            });
-            
-            resolve(results);
-        };
-        request.onerror = () => reject(request.error);
-    });
-};
-
-// Aggiorna locazione articolo
-DB.updateArticoloLocazione = function(codice, nuovaLocazione) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const articolo = await DB.get('articoli', codice);
-            if (articolo) {
-                articolo.locazione = nuovaLocazione;
-                await DB.put('articoli', articolo);
-                resolve(articolo);
-            } else {
-                reject(new Error('Articolo non trovato'));
-            }
-        } catch (e) {
-            reject(e);
-        }
-    });
-};
-
-// ==========================================
-// GIACENZE
-// ==========================================
-
-DB.getGiacenza = function(codice, deposito) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction('giacenze', 'readonly');
-        const store = tx.objectStore('giacenze');
-        const request = store.get([codice, deposito]);
-        
-        request.onsuccess = () => {
-            if (request.result) {
-                resolve(request.result.esistenza || 0);
-            } else {
-                resolve(0);
-            }
-        };
-        request.onerror = () => reject(request.error);
-    });
-};
-
-// ==========================================
-// CLIENTI / FORNITORI
-// ==========================================
-
-DB.searchClienti = function(query, limit = 20) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction('clienti', 'readonly');
-        const store = tx.objectStore('clienti');
-        const request = store.getAll();
-        
-        request.onsuccess = () => {
-            const results = request.result;
-            const q = query.toLowerCase();
-            
-            const filtered = results.filter(cli => 
-                cli.codice.toLowerCase().includes(q) ||
-                (cli.ragSoc1 && cli.ragSoc1.toLowerCase().includes(q))
-            );
-            
-            resolve(filtered.slice(0, limit));
-        };
-        
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.searchFornitori = function(query, limit = 20) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction('fornitori', 'readonly');
-        const store = tx.objectStore('fornitori');
-        const request = store.getAll();
-        
-        request.onsuccess = () => {
-            const results = request.result;
-            const q = query.toLowerCase();
-            
-            const filtered = results.filter(forn => 
-                forn.codice.toLowerCase().includes(q) ||
-                (forn.ragSoc1 && forn.ragSoc1.toLowerCase().includes(q))
-            );
-            
-            resolve(filtered.slice(0, limit));
-        };
-        
-        request.onerror = () => reject(request.error);
-    });
-};
-
-// ==========================================
-// GRUPPI MERCEOLOGICI
-// ==========================================
-
-DB.getAllGruppiMerceologici = function() {
-    return DB.getAll('gruppiMerc').then(results => {
-        return results.sort((a, b) => a.codice.localeCompare(b.codice));
-    });
-};
-
-// ==========================================
-// LOCAZIONI
-// ==========================================
-
-DB.getAllLocazioni = function() {
-    return DB.getAll('locazioni').then(results => {
-        return results.sort((a, b) => a.codice.localeCompare(b.codice));
-    });
-};
-
-// Estrai locazioni uniche dagli articoli
-DB.extractLocazioni = async function() {
-    const articoli = await DB.getAll('articoli');
-    const locazioni = new Set();
+async function saveArticoli(articoli, onProgress) {
+    await clearStore('articoli');
     
-    articoli.forEach(art => {
-        if (art.locazione && art.locazione.trim()) {
-            locazioni.add(art.locazione.trim().toUpperCase());
-        }
-    });
-    
-    // Salva le locazioni
-    await DB.clear('locazioni');
-    for (const loc of locazioni) {
-        await DB.put('locazioni', { codice: loc });
-    }
-    
-    return locazioni.size;
-};
-
-// ==========================================
-// IVA
-// ==========================================
-
-DB.getAliquotaIva = function(codiceIva) {
-    return DB.get('iva', codiceIva);
-};
-
-// Cache sincrona per IVA (popolata all'avvio)
-DB.ivaCache = {};
-
-DB.loadIvaCache = async function() {
-    const aliquote = await DB.getAll('iva');
-    DB.ivaCache = {};
-    aliquote.forEach(a => {
-        DB.ivaCache[a.codice] = a.aliquota || 0;
-    });
-};
-
-DB.getAliquotaIvaSync = function(codiceIva) {
-    return DB.ivaCache[codiceIva] || 0;
-};
-
-// ==========================================
-// CODE
-// ==========================================
-
-DB.addToQueue = function(storeName, item) {
-    item.timestamp = new Date().toISOString();
-    item.synced = false;
-    return DB.add(storeName, item);
-};
-
-DB.getQueue = function(storeName) {
     return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readonly');
-        const store = tx.objectStore(storeName);
-        const index = store.index('synced');
-        const request = index.getAll(false);
+        const transaction = db.transaction('articoli', 'readwrite');
+        const store = transaction.objectStore('articoli');
         
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.countQueue = function(storeName) {
-    return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readonly');
-        const store = tx.objectStore(storeName);
-        const index = store.index('synced');
-        const request = index.count(false);
+        let processed = 0;
+        const total = articoli.length;
+        const batchSize = 500;
         
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-};
-
-DB.markSynced = function(storeName, id) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const item = await DB.get(storeName, id);
-            if (item) {
-                item.synced = true;
-                item.syncedAt = new Date().toISOString();
-                await DB.put(storeName, item);
+        function processBatch(startIndex) {
+            const endIndex = Math.min(startIndex + batchSize, total);
+            
+            for (let i = startIndex; i < endIndex; i++) {
+                store.put(articoli[i]);
+                processed++;
             }
-            resolve();
-        } catch (e) {
-            reject(e);
+            
+            if (onProgress) {
+                onProgress(Math.round((processed / total) * 100));
+            }
+            
+            if (endIndex < total) {
+                setTimeout(() => processBatch(endIndex), 0);
+            }
         }
+        
+        transaction.oncomplete = () => resolve(total);
+        transaction.onerror = () => reject(transaction.error);
+        
+        processBatch(0);
     });
-};
+}
 
-DB.clearSyncedQueue = function(storeName) {
+function searchArticoli(query, limit = 50) {
     return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        const index = store.index('synced');
-        const request = index.openCursor(IDBKeyRange.only(true));
+        if (!query || query.length < 2) {
+            resolve([]);
+            return;
+        }
+        
+        const queryLower = query.toLowerCase();
+        const results = [];
+        
+        const store = getStore('articoli', 'readonly');
+        const request = store.openCursor();
         
         request.onsuccess = (event) => {
             const cursor = event.target.result;
-            if (cursor) {
-                store.delete(cursor.primaryKey);
+            
+            if (cursor && results.length < limit) {
+                const art = cursor.value;
+                
+                // Ricerca su codice, barcode, descrizione1, descrizione2
+                if (art.codice.toLowerCase().includes(queryLower) ||
+                    (art.barcode && art.barcode.includes(query)) ||
+                    art.des1.toLowerCase().includes(queryLower) ||
+                    (art.des2 && art.des2.toLowerCase().includes(queryLower))) {
+                    results.push(art);
+                }
+                
                 cursor.continue();
+            } else {
+                resolve(results);
             }
         };
         
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
+        request.onerror = () => reject(request.error);
     });
-};
+}
 
-// ==========================================
-// STORICO
-// ==========================================
-
-DB.moveToStorico = async function(queueStoreName, storicoStoreName) {
-    const items = await DB.getAll(queueStoreName);
-    const syncedItems = items.filter(i => i.synced);
-    
-    for (const item of syncedItems) {
-        await DB.add(storicoStoreName, {
-            ...item,
-            archivedAt: new Date().toISOString()
-        });
-        await DB.delete(queueStoreName, item.id);
-    }
-    
-    return syncedItems.length;
-};
-
-DB.getStorico = function(storeName, limit = 50) {
+function getArticoloByCode(codice) {
     return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(storeName, 'readonly');
-        const store = tx.objectStore(storeName);
+        const store = getStore('articoli', 'readonly');
+        const request = store.get(codice);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getArticoloByBarcode(barcode) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('articoli', 'readonly');
+        const index = store.index('barcode');
+        const request = index.get(barcode);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getAllArticoli() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('articoli', 'readonly');
         const request = store.getAll();
-        
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Aggiorna locazione di un articolo
+function updateArticoloLocazione(codice, nuovaLocazione) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const articolo = await getArticoloByCode(codice);
+            if (!articolo) {
+                reject(new Error('Articolo non trovato'));
+                return;
+            }
+            
+            articolo.locazione = nuovaLocazione;
+            
+            const store = getStore('articoli', 'readwrite');
+            const request = store.put(articolo);
+            request.onsuccess = () => resolve(articolo);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+// Ottieni tutti articoli ordinati per locazione + codice (senza loc in fondo)
+function getAllArticoliByLocazione() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('articoli', 'readonly');
+        const request = store.getAll();
         request.onsuccess = () => {
-            const results = request.result;
-            // Ordina per data decrescente
-            results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            resolve(results.slice(0, limit));
+            const result = request.result.sort((a, b) => {
+                const locA = (a.locazione || '').trim();
+                const locB = (b.locazione || '').trim();
+                
+                if (!locA && locB) return 1;
+                if (locA && !locB) return -1;
+                
+                if (locA !== locB) return locA.localeCompare(locB);
+                return (a.codice || '').localeCompare(b.codice || '');
+            });
+            resolve(result);
         };
         request.onerror = () => reject(request.error);
     });
-};
+}
+
+// Ottieni tutti articoli ordinati per gruppo + codice
+function getAllArticoliByGruppo() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('articoli', 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => {
+            const result = request.result.sort((a, b) => {
+                const grpA = (a.gruppo || 'ZZZ').toUpperCase();
+                const grpB = (b.gruppo || 'ZZZ').toUpperCase();
+                if (grpA !== grpB) return grpA.localeCompare(grpB);
+                return (a.codice || '').localeCompare(b.codice || '');
+            });
+            resolve(result);
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ==========================================
+// CLIENTI
+// ==========================================
+
+async function saveClienti(clienti, onProgress) {
+    await clearStore('clienti');
+    
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction('clienti', 'readwrite');
+        const store = transaction.objectStore('clienti');
+        
+        clienti.forEach((cli, idx) => {
+            store.put(cli);
+            if (onProgress && idx % 100 === 0) {
+                onProgress(Math.round((idx / clienti.length) * 100));
+            }
+        });
+        
+        transaction.oncomplete = () => resolve(clienti.length);
+        transaction.onerror = () => reject(transaction.error);
+    });
+}
+
+function searchClienti(query, limit = 50) {
+    return new Promise((resolve, reject) => {
+        if (!query || query.length < 2) {
+            resolve([]);
+            return;
+        }
+        
+        const queryLower = query.toLowerCase();
+        const results = [];
+        
+        const store = getStore('clienti', 'readonly');
+        const request = store.openCursor();
+        
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            
+            if (cursor && results.length < limit) {
+                const cli = cursor.value;
+                
+                if (cli.codice.toLowerCase().includes(queryLower) ||
+                    cli.ragSoc1.toLowerCase().includes(queryLower) ||
+                    cli.partitaIva.includes(query)) {
+                    results.push(cli);
+                }
+                
+                cursor.continue();
+            } else {
+                resolve(results);
+            }
+        };
+        
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getAllClienti() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('clienti', 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ==========================================
+// FORNITORI
+// ==========================================
+
+async function saveFornitori(fornitori, onProgress) {
+    await clearStore('fornitori');
+    
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction('fornitori', 'readwrite');
+        const store = transaction.objectStore('fornitori');
+        
+        fornitori.forEach((forn, idx) => {
+            store.put(forn);
+            if (onProgress && idx % 100 === 0) {
+                onProgress(Math.round((idx / fornitori.length) * 100));
+            }
+        });
+        
+        transaction.oncomplete = () => resolve(fornitori.length);
+        transaction.onerror = () => reject(transaction.error);
+    });
+}
+
+function searchFornitori(query, limit = 50) {
+    return new Promise((resolve, reject) => {
+        if (!query || query.length < 2) {
+            resolve([]);
+            return;
+        }
+        
+        const queryLower = query.toLowerCase();
+        const results = [];
+        
+        const store = getStore('fornitori', 'readonly');
+        const request = store.openCursor();
+        
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            
+            if (cursor && results.length < limit) {
+                const forn = cursor.value;
+                
+                if (forn.codice.toLowerCase().includes(queryLower) ||
+                    forn.ragSoc1.toLowerCase().includes(queryLower) ||
+                    forn.partitaIva.includes(query)) {
+                    results.push(forn);
+                }
+                
+                cursor.continue();
+            } else {
+                resolve(results);
+            }
+        };
+        
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getAllFornitori() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('fornitori', 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ==========================================
+// CODE (INVENTARIO, ORDINI)
+// ==========================================
+
+function addToQueue(storeName, item) {
+    return new Promise((resolve, reject) => {
+        const store = getStore(storeName, 'readwrite');
+        const request = store.add(item);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function updateQueueItem(storeName, item) {
+    return new Promise((resolve, reject) => {
+        const store = getStore(storeName, 'readwrite');
+        const request = store.put(item);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function deleteFromQueue(storeName, id) {
+    return new Promise((resolve, reject) => {
+        const store = getStore(storeName, 'readwrite');
+        const request = store.delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getQueue(storeName) {
+    return new Promise((resolve, reject) => {
+        const store = getStore(storeName, 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function clearQueue(storeName) {
+    return clearStore(storeName);
+}
+
+// ==========================================
+// METADATA
+// ==========================================
+
+function setMetadata(key, value) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('metadata', 'readwrite');
+        const request = store.put({ key, value });
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getMetadata(key) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('metadata', 'readonly');
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result ? request.result.value : null);
+        request.onerror = () => reject(request.error);
+    });
+}
 
 // ==========================================
 // STATISTICHE
 // ==========================================
 
-DB.getStats = async function() {
-    const stats = {
-        articoli: await DB.count('articoli'),
-        clienti: await DB.count('clienti'),
-        fornitori: await DB.count('fornitori'),
-        queueInventario: await DB.countQueue('queueInventario'),
-        queueOrdiniClienti: await DB.countQueue('queueOrdiniClienti'),
-        queueOrdiniFornitori: await DB.countQueue('queueOrdiniFornitori'),
-        storicoInventario: await DB.count('storicoInventario'),
-        storicoOrdiniClienti: await DB.count('storicoOrdiniClienti'),
-        storicoOrdiniFornitori: await DB.count('storicoOrdiniFornitori')
-    };
+async function getStats() {
+    const articoliCount = await countStore('articoli');
+    const clientiCount = await countStore('clienti');
+    const fornitoriCount = await countStore('fornitori');
+    const queueInvCount = await countStore('queueInventario');
+    const queueOrdCliCount = await countStore('queueOrdiniClienti');
+    const queueOrdForCount = await countStore('queueOrdiniFornitori');
     
-    return stats;
-};
-
-// ==========================================
-// CLEAR ALL
-// ==========================================
-
-DB.clearAllData = async function() {
-    const stores = [
-        'articoli', 'codbar', 'giacenze', 'clienti', 'fornitori',
-        'iva', 'pagamenti', 'gruppiMerc', 'locazioni',
-        'queueInventario', 'queueOrdiniClienti', 'queueOrdiniFornitori',
-        'storicoInventario', 'storicoOrdiniClienti', 'storicoOrdiniFornitori'
-    ];
-    
-    for (const store of stores) {
-        try {
-            await DB.clear(store);
-        } catch (e) {
-            console.warn('Errore clear', store, e);
-        }
-    }
-};
-
-// ==========================================
-// CHECK DATA EXISTS
-// ==========================================
-
-DB.hasData = async function() {
+    // Storico ordini (v3)
+    let storicoCliCount = 0;
+    let storicoForCount = 0;
     try {
-        const count = await DB.count('articoli');
-        return count > 0;
-    } catch (e) {
-        return false;
+        storicoCliCount = await countStore('storicoOrdiniClienti');
+        storicoForCount = await countStore('storicoOrdiniFornitori');
+    } catch(e) {
+        // Store non ancora creato
     }
-};
+    
+    return {
+        articoli: articoliCount,
+        clienti: clientiCount,
+        fornitori: fornitoriCount,
+        queueInventario: queueInvCount,
+        queueOrdiniClienti: queueOrdCliCount,
+        queueOrdiniFornitori: queueOrdForCount,
+        storicoOrdiniClienti: storicoCliCount,
+        storicoOrdiniFornitori: storicoForCount
+    };
+}
 
-console.log('DB module loaded');
+// ==========================================
+// ALIQUOTE IVA
+// ==========================================
+
+function saveAliquoteIva(aliquote) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('aliquoteIva', 'readwrite');
+        let completed = 0;
+        
+        aliquote.forEach(item => {
+            const request = store.put(item);
+            request.onsuccess = () => {
+                completed++;
+                if (completed === aliquote.length) resolve(completed);
+            };
+            request.onerror = () => reject(request.error);
+        });
+        
+        if (aliquote.length === 0) resolve(0);
+    });
+}
+
+function getAliquotaByCode(codice) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('aliquoteIva', 'readonly');
+        const request = store.get(codice);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getAllAliquoteIva() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('aliquoteIva', 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ==========================================
+// PAGAMENTI
+// ==========================================
+
+function savePagamenti(pagamenti) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('pagamenti', 'readwrite');
+        let completed = 0;
+        
+        pagamenti.forEach(item => {
+            const request = store.put(item);
+            request.onsuccess = () => {
+                completed++;
+                if (completed === pagamenti.length) resolve(completed);
+            };
+            request.onerror = () => reject(request.error);
+        });
+        
+        if (pagamenti.length === 0) resolve(0);
+    });
+}
+
+function getPagamentoByCode(codice) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('pagamenti', 'readonly');
+        const request = store.get(codice);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getAllPagamenti() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('pagamenti', 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ==========================================
+// STORICO ORDINI (v3)
+// ==========================================
+
+// Aggiunge ordine allo storico
+function addToStorico(storeName, ordine) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readwrite');
+            // Copia ordine aggiungendo timestamp se non presente
+            const ordineStorico = {
+                ...ordine,
+                dataStorico: new Date().toISOString()
+            };
+            const request = store.add(ordineStorico);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+// Ottiene tutto lo storico (ordinato per data desc)
+function getStorico(storeName) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readonly');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                // Ordina per timestamp decrescente (più recenti prima)
+                const result = request.result.sort((a, b) => {
+                    const tA = a.timestamp || 0;
+                    const tB = b.timestamp || 0;
+                    return tB - tA;
+                });
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]); // Store non esiste ancora
+        }
+    });
+}
+
+// Ottiene un singolo ordine dallo storico per ID
+function getStoricoById(storeName, id) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readonly');
+            const request = store.get(id);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+// Svuota lo storico
+function clearStorico(storeName) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readwrite');
+            const request = store.clear();
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+// Cerca nello storico per cliente/fornitore
+function searchStorico(storeName, query) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore(storeName, 'readonly');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                const queryLower = query.toLowerCase();
+                const results = request.result.filter(ordine => {
+                    // Cerca in cliente o fornitore
+                    const soggetto = ordine.cliente || ordine.fornitore;
+                    if (!soggetto) return false;
+                    
+                    const ragSoc = (soggetto.ragSoc1 || '').toLowerCase();
+                    const codice = (soggetto.codice || '').toLowerCase();
+                    const numero = (ordine.numero || '').toString();
+                    
+                    return ragSoc.includes(queryLower) || 
+                           codice.includes(queryLower) ||
+                           numero.includes(queryLower);
+                });
+                
+                // Ordina per timestamp desc
+                results.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                resolve(results);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+// ==========================================
+// GRUPPI MERCEOLOGICI (v4)
+// ==========================================
+
+function saveGruppiMerceologici(gruppi) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await clearStore('gruppiMerceologici');
+            const store = getStore('gruppiMerceologici', 'readwrite');
+            let completed = 0;
+            
+            if (gruppi.length === 0) {
+                resolve(0);
+                return;
+            }
+            
+            gruppi.forEach(item => {
+                const request = store.put(item);
+                request.onsuccess = () => {
+                    completed++;
+                    if (completed === gruppi.length) resolve(completed);
+                };
+                request.onerror = () => reject(request.error);
+            });
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+function getAllGruppiMerceologici() {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('gruppiMerceologici', 'readonly');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                // Ordina per descrizione
+                const result = request.result.sort((a, b) => 
+                    (a.descrizione || '').localeCompare(b.descrizione || '')
+                );
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+function getGruppoByCode(codice) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('gruppiMerceologici', 'readonly');
+            const request = store.get(codice);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve(null);
+        }
+    });
+}
+
+// Ottieni articoli per gruppo merceologico
+function getArticoliByGruppo(codiceGruppo) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('articoli', 'readonly');
+            const index = store.index('gruppo');
+            const request = index.getAll(codiceGruppo);
+            request.onsuccess = () => {
+                // Ordina per descrizione
+                const result = request.result.sort((a, b) => 
+                    (a.des1 || '').localeCompare(b.des1 || '')
+                );
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+// ==========================================
+// LOCAZIONI (v4)
+// ==========================================
+
+function saveLocazioni(locazioni) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await clearStore('locazioni');
+            const store = getStore('locazioni', 'readwrite');
+            let completed = 0;
+            
+            if (locazioni.length === 0) {
+                resolve(0);
+                return;
+            }
+            
+            locazioni.forEach(item => {
+                const request = store.put(item);
+                request.onsuccess = () => {
+                    completed++;
+                    if (completed === locazioni.length) resolve(completed);
+                };
+                request.onerror = () => reject(request.error);
+            });
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+function addLocazione(locazione) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('locazioni', 'readwrite');
+            const request = store.put(locazione);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
+function getAllLocazioni() {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('locazioni', 'readonly');
+            const request = store.getAll();
+            request.onsuccess = () => {
+                // Ordina per codice
+                const result = request.result.sort((a, b) => 
+                    (a.codice || '').localeCompare(b.codice || '')
+                );
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+// Ottieni articoli per locazione
+function getArticoliByLocazione(locazione) {
+    return new Promise((resolve, reject) => {
+        try {
+            const store = getStore('articoli', 'readonly');
+            const index = store.index('locazione');
+            const request = index.getAll(locazione);
+            request.onsuccess = () => {
+                // Ordina per descrizione
+                const result = request.result.sort((a, b) => 
+                    (a.des1 || '').localeCompare(b.des1 || '')
+                );
+                resolve(result);
+            };
+            request.onerror = () => reject(request.error);
+        } catch(e) {
+            resolve([]);
+        }
+    });
+}
+
+// Estrai locazioni uniche dagli articoli
+async function extractLocazioniFromArticoli() {
+    const articoli = await getAllArticoli();
+    const locazioniSet = new Set();
+    
+    articoli.forEach(art => {
+        if (art.locazione && art.locazione.trim()) {
+            locazioniSet.add(art.locazione.trim());
+        }
+    });
+    
+    const locazioni = Array.from(locazioniSet).map(loc => ({
+        codice: loc,
+        descrizione: loc
+    }));
+    
+    await saveLocazioni(locazioni);
+    return locazioni;
+}
+
+// ==========================================
+// EXPORT MODULO
+// ==========================================
+
+const DB = {
+    init: initDB,
+    
+    // Articoli
+    saveArticoli,
+    searchArticoli,
+    getArticoloByCode,
+    getArticoloByBarcode,
+    getAllArticoli,
+    getAllArticoliByLocazione,
+    getAllArticoliByGruppo,
+    updateArticoloLocazione,
+    countArticoli: () => countStore('articoli'),
+    
+    // Clienti
+    saveClienti,
+    searchClienti,
+    getAllClienti,
+    countClienti: () => countStore('clienti'),
+    
+    // Fornitori
+    saveFornitori,
+    searchFornitori,
+    getAllFornitori,
+    countFornitori: () => countStore('fornitori'),
+    
+    // Aliquote IVA
+    saveAliquoteIva,
+    getAliquotaByCode,
+    getAllAliquoteIva,
+    
+    // Pagamenti
+    savePagamenti,
+    getPagamentoByCode,
+    getAllPagamenti,
+    
+    // Code
+    addToQueue,
+    updateQueueItem,
+    deleteFromQueue,
+    getQueue,
+    clearQueue,
+    countStore,  // Espongo la funzione generica countStore
+    
+    // Storico Ordini (v3)
+    addToStorico,
+    getStorico,
+    getStoricoById,
+    clearStorico,
+    searchStorico,
+    
+    // Gruppi Merceologici (v4)
+    saveGruppiMerceologici,
+    getAllGruppiMerceologici,
+    getGruppoByCode,
+    getArticoliByGruppo,
+    
+    // Locazioni (v4)
+    saveLocazioni,
+    addLocazione,
+    getAllLocazioni,
+    getArticoliByLocazione,
+    extractLocazioniFromArticoli,
+    
+    // Metadata
+    setMetadata,
+    getMetadata,
+    
+    // Stats
+    getStats
+};

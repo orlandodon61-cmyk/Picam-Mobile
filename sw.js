@@ -1,15 +1,15 @@
-/**
- * PICAM PWA - Service Worker v3.5
- * Cache v38
- */
+// ==========================================
+// PICAM v3.6 - Service Worker
+// Cache Version: v39 - Fix sync, gruppi, prezzo ordini
+// ==========================================
 
-const CACHE_NAME = 'picam-v38';
-const urlsToCache = [
+const CACHE_NAME = 'picam-cache-v39';
+const ASSETS = [
     './',
     './index.html',
     './styles.css',
-    './app.js',
     './db.js',
+    './app.js',
     './manifest.json',
     './icon-192.png',
     './icon-512.png',
@@ -20,12 +20,12 @@ const urlsToCache = [
 
 // Install
 self.addEventListener('install', event => {
-    console.log('SW: Install v38');
+    console.log('[SW] Install v39');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                console.log('SW: Caching files');
-                return cache.addAll(urlsToCache);
+                console.log('[SW] Caching assets...');
+                return cache.addAll(ASSETS);
             })
             .then(() => self.skipWaiting())
     );
@@ -33,13 +33,13 @@ self.addEventListener('install', event => {
 
 // Activate
 self.addEventListener('activate', event => {
-    console.log('SW: Activate');
+    console.log('[SW] Activate v39');
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cacheName => {
                     if (cacheName !== CACHE_NAME) {
-                        console.log('SW: Removing old cache', cacheName);
+                        console.log('[SW] Deleting old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
@@ -50,12 +50,12 @@ self.addEventListener('activate', event => {
 
 // Fetch
 self.addEventListener('fetch', event => {
-    // Skip non-GET requests
-    if (event.request.method !== 'GET') return;
+    const url = new URL(event.request.url);
     
-    // Skip Google API requests (always network)
-    if (event.request.url.includes('googleapis.com') || 
-        event.request.url.includes('accounts.google.com')) {
+    // Escludi Google APIs e autenticazione
+    if (url.hostname.includes('googleapis.com') || 
+        url.hostname.includes('accounts.google.com') ||
+        url.hostname.includes('gstatic.com')) {
         return;
     }
     
@@ -63,32 +63,27 @@ self.addEventListener('fetch', event => {
         caches.match(event.request)
             .then(response => {
                 if (response) {
+                    // Ritorna dalla cache
                     return response;
                 }
                 
-                return fetch(event.request).then(response => {
-                    // Don't cache non-successful responses
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
-                        return response;
+                // Fetch dalla rete
+                return fetch(event.request).then(networkResponse => {
+                    // Cache solo GET
+                    if (event.request.method === 'GET' && networkResponse.status === 200) {
+                        const responseClone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then(cache => {
+                            cache.put(event.request, responseClone);
+                        });
                     }
-                    
-                    // Clone the response
-                    const responseToCache = response.clone();
-                    
-                    caches.open(CACHE_NAME).then(cache => {
-                        cache.put(event.request, responseToCache);
-                    });
-                    
-                    return response;
+                    return networkResponse;
                 });
             })
             .catch(() => {
                 // Offline fallback
-                if (event.request.mode === 'navigate') {
+                if (event.request.destination === 'document') {
                     return caches.match('./index.html');
                 }
             })
     );
 });
-
-console.log('Service Worker loaded v38');
