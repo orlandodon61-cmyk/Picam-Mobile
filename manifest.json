@@ -1,13 +1,13 @@
 {
-    "name": "Picam - Inventario e Ordini",
-    "short_name": "Picam",
-    "description": "Gestione inventario e ordini con sincronizzazione Google Drive",
-    "version": "3.0.0",
+    "name": "PICAM Mobile",
+    "short_name": "PICAM",
+    "description": "Gestione Inventario e Ordini",
+    "version": "3.5",
     "start_url": "./index.html",
     "display": "standalone",
-    "orientation": "portrait",
-    "background_color": "#E8EAED",
+    "background_color": "#37474F",
     "theme_color": "#37474F",
+    "orientation": "portrait-primary",
     "icons": [
         {
             "src": "icon-192.png",
