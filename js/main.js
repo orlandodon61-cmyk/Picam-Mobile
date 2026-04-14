@@ -198,6 +198,15 @@ APP.loadAllData = async function() {
         setProgress(60, 'Elaborazione articoli...');
         const mergedArticoli = APP.mergeArticoli(articoli, codbar, artdep);
 
+        // DEBUG: verifica campo gruppo e locazione sui primi 3 articoli
+        console.log('=== MERGE ARTICOLI - verifica campi ===');
+        mergedArticoli.slice(0, 3).forEach((a, i) => {
+            console.log(`[${i}] codice=${a.codice} | gruppo="${a.gruppo}" | locazione="${a.locazione}" | giacenza=${a.giacenza}`);
+        });
+        const conGruppo   = mergedArticoli.filter(a => a.gruppo   && a.gruppo   !== '').length;
+        const conLocazione = mergedArticoli.filter(a => a.locazione && a.locazione !== '').length;
+        console.log(`Articoli con gruppo: ${conGruppo}/${mergedArticoli.length} | con locazione: ${conLocazione}/${mergedArticoli.length}`);
+
         setProgress(65, 'Salvataggio articoli...');
         await DB.saveArticoli(mergedArticoli, (pct) => {
             progressFill.style.width = (65 + pct * 0.1) + '%';
@@ -300,37 +309,59 @@ APP.loadExcelFile = async function(folderId, fileName) {
 // ---------- MAPPER DATI ----------
 
 APP.mergeArticoli = function(articoli, codbar, artdep) {
+    // Mappa barcode: codArt -> barcode
     const codbarMap = new Map();
     codbar.forEach(cb => {
         const codArt = (cb.cba_cod_art || cb.CBA_COD_ART || '').toString().trim();
         const barcode = (cb.cba_cod_bar || cb.CBA_COD_BAR || '').toString().trim();
         if (codArt && barcode) codbarMap.set(codArt, barcode);
     });
+
+    // Mappa artdep: codArt -> { giacenza, locazione }  (usata come fallback)
     const artdepMap = new Map();
     artdep.forEach(ad => {
         const codArt = (ad.ard_cod || ad.ARD_COD || '').toString().trim();
         if (codArt) artdepMap.set(codArt, {
-            giacenza: ad.ard_giac || ad.ARD_GIAC || 0,
+            giacenza: parseFloat(ad.ard_giac || ad.ARD_GIAC || 0) || 0,
             locazione: (ad.ard_loc || ad.ARD_LOC || '').toString().trim()
         });
     });
+
     return articoli.map(art => {
         const codice = (art.art_cod || art.ART_COD || '').toString().trim();
         const depInfo = artdepMap.get(codice) || { giacenza: 0, locazione: '' };
+
+        // GRUPPO: campo reale art_gru_ven, fallback art_gru per compatibilita'
+        const gruppo = (
+            art.art_gru_ven || art.ART_GRU_VEN ||
+            art.art_gru     || art.ART_GRU     || ''
+        ).toString().trim();
+
+        // LOCAZIONE: campo reale art_loc_mag in articoli.xlsx, fallback artdep
+        const locazione = (
+            art.art_loc_mag || art.ART_LOC_MAG ||
+            depInfo.locazione || ''
+        ).toString().trim();
+
+        // GIACENZA: da artdep (piu' affidabile), fallback campo diretto
+        const giacenza = parseFloat(
+            depInfo.giacenza || art.art_giac || art.ART_GIAC || 0
+        ) || 0;
+
         return {
             codice,
-            des1: (art.art_des_1 || art.ART_DES_1 || '').toString().trim(),
-            des2: (art.art_des_2 || art.ART_DES_2 || '').toString().trim(),
-            um: (art.art_uni_mis || art.ART_UNI_MIS || '').toString().trim(),
-            gruppo: (art.art_gru || art.ART_GRU || '').toString().trim(),
-            prezzo: parseFloat(art.art_pre_ven || art.ART_PRE_VEN || 0) || 0,
-            prezzoVendita: parseFloat(art.art_prz_ult_ven || art.ART_PRZ_ULT_VEN || 0) || 0,
+            des1:          (art.art_des_1 || art.ART_DES_1 || '').toString().trim(),
+            des2:          (art.art_des_2 || art.ART_DES_2 || '').toString().trim(),
+            um:            (art.art_uni_mis || art.ART_UNI_MIS || '').toString().trim(),
+            gruppo,
+            prezzo:         parseFloat(art.art_pre_ven     || art.ART_PRE_VEN     || 0) || 0,
+            prezzoVendita:  parseFloat(art.art_prz_ult_ven || art.ART_PRZ_ULT_VEN || 0) || 0,
             prezzoAcquisto: parseFloat(art.art_prz_ult_acq || art.ART_PRZ_ULT_ACQ || 0) || 0,
-            codIvaVendita: (art.art_cod_iva_ven || art.ART_COD_IVA_VEN || art.art_cod_iva || art.ART_COD_IVA || '22').toString().trim(),
+            codIvaVendita:  (art.art_cod_iva_ven || art.ART_COD_IVA_VEN || art.art_cod_iva || art.ART_COD_IVA || '22').toString().trim(),
             codIvaAcquisto: (art.art_cod_iva_acq || art.ART_COD_IVA_ACQ || art.art_cod_iva || art.ART_COD_IVA || '22').toString().trim(),
-            barcode: codbarMap.get(codice) || '',
-            giacenza: depInfo.giacenza,
-            locazione: depInfo.locazione
+            barcode:    codbarMap.get(codice) || '',
+            giacenza,
+            locazione
         };
     });
 };
