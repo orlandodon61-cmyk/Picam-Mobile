@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#37474F">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>PICAM v4.0</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<!-- ==================== SETUP ==================== -->
+<div id="screen-setup" class="screen active">
+  <div class="setup-container">
+    <div class="logo-header">
+      <div class="logo-icon-small">📦</div>
+      <div class="logo-text">
+        <span class="logo-title-inline">PICAM</span>
+        <span class="logo-subtitle-inline">Inventario &amp; Ordini v4.0</span>
+      </div>
+    </div>
+
+    <!-- Step 1: Login -->
+    <div class="setup-step" id="step-login">
+      <div class="step-header">
+        <span class="step-number">1</span>
+        <span class="step-title">Accesso Google</span>
+      </div>
+      <button class="btn-primary" onclick="APP.login()">🔐 Accedi con Google</button>
+      <div id="login-status" class="status-message"></div>
+    </div>
+
+    <!-- Step 2: Config -->
+    <div class="setup-step disabled" id="step-config">
+      <div class="step-header">
+        <span class="step-number">2</span>
+        <span class="step-title">Configurazione</span>
+      </div>
+      <div class="config-row">
+        <div class="ordine-field config-field-folder">
+          <label>Cartella Drive</label>
+          <input type="text" id="config-folder" placeholder="archivi/Ordini">
+        </div>
+        <div class="ordine-field">
+          <label>Deposito</label>
+          <input type="text" id="config-deposito" placeholder="01" maxlength="4">
+        </div>
+      </div>
+      <div class="config-row" style="margin-top:8px">
+        <div class="ordine-field">
+          <label>Registro Clienti</label>
+          <input type="text" id="config-registro-cli" placeholder="01" maxlength="4">
+        </div>
+        <div class="ordine-field">
+          <label>Registro Fornitori</label>
+          <input type="text" id="config-registro-for" placeholder="01" maxlength="4">
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Avvia -->
+    <div class="setup-step disabled" id="step-load">
+      <div class="step-header">
+        <span class="step-number">3</span>
+        <span class="step-title">Carica Dati</span>
+      </div>
+      <button class="btn-primary" id="btn-load-data" onclick="APP.loadAllData()">☁️ Carica Dati da Drive</button>
+      <div class="progress-container hidden" id="load-progress">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+        <p class="progress-text" id="progress-text">Caricamento...</p>
+      </div>
+      <div id="load-status" class="status-message"></div>
+    </div>
+
+    <div id="skip-option" class="skip-option-card" style="display:none">
+      <button class="btn-skip-full" onclick="APP.skipLoadData()">
+        <span class="skip-icon">⏩</span>
+        <span class="skip-text">Usa dati già caricati</span>
+        <span class="skip-count" id="skip-count"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MENU ==================== -->
+<div id="screen-menu" class="screen">
+  <header class="main-header">
+    <div class="header-left"><span class="header-title">PICAM v4.0</span></div>
+    <div class="header-right">
+      <button class="btn-icon-only" onclick="APP.refreshData()">🔄</button>
+      <button class="btn-icon-only" onclick="APP.openSettings()">⚙️</button>
+    </div>
+  </header>
+  <div class="menu-container">
+    <div class="menu-grid">
+      <div class="menu-card" onclick="APP.openInventario()">
+        <div class="menu-card-icon">📋</div>
+        <div class="menu-card-content">
+          <div class="menu-card-title">Inventario</div>
+          <div class="menu-card-desc">Gestione inventario magazzino</div>
+        </div>
+        <span class="menu-card-badge" id="badge-inventario"></span>
+      </div>
+      <div class="menu-card" onclick="APP.openOrdiniClienti()">
+        <div class="menu-card-icon">🛒</div>
+        <div class="menu-card-content">
+          <div class="menu-card-title">Ordini Clienti</div>
+          <div class="menu-card-desc">Creazione ordini clienti</div>
+        </div>
+        <span class="menu-card-badge" id="badge-ordini-clienti"></span>
+      </div>
+      <div class="menu-card fornitori" onclick="APP.openOrdiniFornitori()">
+        <div class="menu-card-icon">🏭</div>
+        <div class="menu-card-content">
+          <div class="menu-card-title">Ordini Fornitori</div>
+          <div class="menu-card-desc">Creazione ordini fornitori</div>
+        </div>
+        <span class="menu-card-badge" id="badge-ordini-fornitori"></span>
+      </div>
+    </div>
+    <div class="menu-stats">
+      <div class="stat-item"><span class="stat-value" id="stat-articoli">0</span><span class="stat-label">Articoli</span></div>
+      <div class="stat-item"><span class="stat-value" id="stat-clienti">0</span><span class="stat-label">Clienti</span></div>
+      <div class="stat-item"><span class="stat-value" id="stat-fornitori">0</span><span class="stat-label">Fornitori</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== INVENTARIO ==================== -->
+<div id="screen-inventario" class="screen">
+  <header class="main-header">
+    <div class="header-left">
+      <button class="btn-back" onclick="APP.goToMenu()">←</button>
+      <span class="header-title">Inventario</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-queue-main" onclick="APP.openQueueModal('inventario')">
+        📋 GESTIONE <span id="header-queue-count-inv" class="queue-badge"></span>
+      </button>
+    </div>
+  </header>
+  <div style="padding:14px;flex:1;overflow-y:auto">
+
+    <!-- Selettore Modalità -->
+    <div class="inv-mode-selector" id="inv-mode-selector">
+      <div class="inv-mode-title">Seleziona modalità inventario</div>
+      <div class="inv-mode-buttons">
+        <button class="inv-mode-btn" onclick="APP.setInvMode('scansione')">
+          <span class="inv-mode-icon">📷</span>
+          <span class="inv-mode-label">Scansione</span>
+          <span class="inv-mode-desc">Articolo singolo</span>
+        </button>
+        <button class="inv-mode-btn" onclick="APP.showLocazioneSelector()">
+          <span class="inv-mode-icon">📍</span>
+          <span class="inv-mode-label">Per Locazione</span>
+          <span class="inv-mode-desc">Lista articoli</span>
+        </button>
+        <button class="inv-mode-btn" onclick="APP.showGruppoSelector()">
+          <span class="inv-mode-icon">📦</span>
+          <span class="inv-mode-label">Per Gruppo</span>
+          <span class="inv-mode-desc">Merceologico</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modalità Scansione -->
+    <div id="inv-scansione-mode" style="display:none">
+      <button class="btn-change-mode" onclick="APP.showModeSelector()">← Cambia modalità</button>
+      <div class="scan-mode-toggle">
+        <label class="toggle-label"><input type="checkbox" id="fast-scan-inv" onchange="APP.toggleFastScan('inv')"><span class="toggle-slider"></span></label>
+        <span class="toggle-text">⚡ Scansione veloce (qty=1)</span>
+      </div>
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="search-inv" placeholder="Cerca articolo..." oninput="APP.debounceSearch('inv')">
+        <button class="btn-filter-toggle" onclick="APP.toggleArticoliFilters('inv')">⚙️</button>
+        <button class="btn-scan" onclick="APP.startScan('inv')">📷</button>
+      </div>
+      <div class="articoli-filters hidden" id="articoli-filters-inv">
+        <div class="filter-row">
+          <select id="filter-gruppo-inv" onchange="APP.applyArticoliFilters('inv')"><option value="">📦 Tutti i gruppi</option></select>
+          <select id="filter-locazione-inv" onchange="APP.applyArticoliFilters('inv')"><option value="">📍 Tutte le locazioni</option></select>
+        </div>
+        <div class="filter-row">
+          <select id="filter-giacenza-inv" onchange="APP.applyArticoliFilters('inv')">
+            <option value="">📊 Tutte le giacenze</option>
+            <option value="positive">Con giacenza &gt; 0</option>
+            <option value="zero">Giacenza = 0</option>
+            <option value="negative">Giacenza &lt; 0</option>
+          </select>
+          <button class="btn-reset-filters" onclick="APP.resetArticoliFilters('inv')">🔄 Reset</button>
+        </div>
+      </div>
+      <div class="results-list mt-12" id="results-inv"></div>
+      <div class="card mt-16" id="history-inv-card" style="display:none">
+        <div class="card-header"><span class="card-title">📜 Ultime scansioni</span></div>
+        <div class="history-list" id="history-inv"></div>
+      </div>
+    </div>
+
+    <!-- Modalità Tabellare -->
+    <div id="inv-tabellare-mode" style="display:none">
+      <div class="inv-tab-header">
+        <button class="btn-change-mode" onclick="APP.showModeSelector()">← Cambia modalità</button>
+        <div class="inv-tab-info" id="inv-tab-info"></div>
+      </div>
+      <div class="inv-tab-selector">
+        <select id="inv-tab-select" onchange="APP.loadArticoliTabellare()"><option value="">-- Seleziona --</option></select>
+      </div>
+      <div class="inv-tab-table-container">
+        <table class="inv-tab-table" id="inv-tab-table">
+          <thead><tr>
+            <th>Codice</th><th>Descrizione</th><th>Loc.</th>
+            <th style="width:72px">Qtà</th><th style="width:36px"></th>
+          </tr></thead>
+          <tbody id="inv-tab-tbody"></tbody>
+        </table>
+      </div>
+      <div class="inv-tab-actions" id="inv-tab-actions" style="display:none">
+        <button class="btn-primary" onclick="APP.confirmAllInventario()">
+          ✅ Conferma Tutto (<span id="inv-tab-count">0</span> articoli)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ORDINI CLIENTI ==================== -->
+<div id="screen-ordini-clienti" class="screen">
+  <header class="main-header">
+    <div class="header-left">
+      <button class="btn-back" onclick="APP.goToMenu()">←</button>
+      <span class="header-title">Ordini Clienti</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-queue-main" onclick="APP.openQueueModal('ordiniClienti')">
+        📋 GESTIONE <span id="header-queue-count-ord-cli" class="queue-badge"></span>
+      </button>
+    </div>
+  </header>
+  <div class="ordine-container">
+    <div class="ordine-section">
+      <h3>📄 Dati Ordine</h3>
+      <div class="ordine-grid">
+        <div class="ordine-field">
+          <label>Registro</label>
+          <input type="text" id="ord-cli-registro" value="01" maxlength="4"
+                 onchange="this.dataset.userModified='true'">
+        </div>
+        <div class="ordine-field">
+          <label>Numero</label>
+          <input type="number" id="ord-cli-numero" value="1">
+        </div>
+        <div class="ordine-field">
+          <label>Data</label>
+          <input type="text" id="ord-cli-data" readonly>
+        </div>
+      </div>
+    </div>
+    <div class="ordine-section">
+      <h3>👤 Cliente</h3>
+      <div class="search-bar mb-12">
+        <span>🔍</span>
+        <input type="text" id="search-cliente" placeholder="Cerca cliente..." oninput="APP.debounceSearch('cliente')">
+      </div>
+      <div id="results-cliente" class="results-list"></div>
+      <div id="selected-cliente" class="cliente-info empty"><span>Nessun cliente selezionato</span></div>
+    </div>
+    <div class="ordine-section">
+      <h3>💳 Pagamento</h3>
+      <div class="ordine-field">
+        <label>Modalità Pagamento</label>
+        <select id="ord-cli-pagamento" class="pagamento-select">
+          <option value="">-- Seleziona pagamento --</option>
+        </select>
+      </div>
+    </div>
+    <div class="ordine-section">
+      <h3>📦 Articoli</h3>
+      <div class="scan-mode-toggle">
+        <label class="toggle-label"><input type="checkbox" id="fast-scan-ord-cli" onchange="APP.toggleFastScan('ordCli')"><span class="toggle-slider"></span></label>
+        <span class="toggle-text">⚡ Scansione veloce</span>
+      </div>
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="search-art-ord-cli" placeholder="Cerca articolo..." oninput="APP.debounceSearch('artOrdCli')">
+        <button class="btn-filter-toggle" onclick="APP.toggleArticoliFilters('artOrdCli')">⚙️</button>
+        <button class="btn-scan" onclick="APP.startScan('ordCli')">📷</button>
+      </div>
+      <div class="articoli-filters hidden" id="articoli-filters-artOrdCli">
+        <div class="filter-row">
+          <select id="filter-gruppo-artOrdCli" onchange="APP.applyArticoliFilters('artOrdCli')"><option value="">📦 Tutti i gruppi</option></select>
+          <select id="filter-locazione-artOrdCli" onchange="APP.applyArticoliFilters('artOrdCli')"><option value="">📍 Tutte le locazioni</option></select>
+        </div>
+        <div class="filter-row">
+          <select id="filter-giacenza-artOrdCli" onchange="APP.applyArticoliFilters('artOrdCli')">
+            <option value="">📊 Tutte le giacenze</option>
+            <option value="positive">Con giacenza &gt; 0</option>
+            <option value="zero">Giacenza = 0</option>
+          </select>
+          <button class="btn-reset-filters" onclick="APP.resetArticoliFilters('artOrdCli')">🔄 Reset</button>
+        </div>
+      </div>
+      <div id="results-art-ord-cli" class="results-list mt-12"></div>
+      <div class="righe-list" id="righe-ord-cli"></div>
+    </div>
+    <div class="ordine-section totali" id="totali-ord-cli">
+      <div class="totali-grid">
+        <div class="totale-row"><span>Articoli</span><span id="tot-cli-articoli">0</span></div>
+        <div class="totale-row"><span>Quantità totale</span><span id="tot-cli-qta">0</span></div>
+        <div class="totale-row totale-importo"><span>Imponibile</span><span id="tot-cli-imponibile">€ 0,00</span></div>
+        <div class="totale-row totale-importo"><span>IVA</span><span id="tot-cli-iva">€ 0,00</span></div>
+        <div class="totale-row totale-finale"><span>TOTALE ORDINE</span><span id="tot-cli-totale">€ 0,00</span></div>
+      </div>
+    </div>
+    <button class="btn-confirm-order" id="btn-conferma-ord-cli" onclick="APP.confermaOrdineCliente()" disabled>
+      ✅ Conferma Ordine Cliente
+    </button>
+  </div>
+</div>
+
+<!-- ==================== ORDINI FORNITORI ==================== -->
+<div id="screen-ordini-fornitori" class="screen">
+  <header class="main-header header-fornitori">
+    <div class="header-left">
+      <button class="btn-back" onclick="APP.goToMenu()">←</button>
+      <span class="header-title">Ordini Fornitori</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-queue-main" onclick="APP.openQueueModal('ordiniFornitori')">
+        📋 GESTIONE <span id="header-queue-count-ord-for" class="queue-badge"></span>
+      </button>
+    </div>
+  </header>
+  <div class="ordine-container">
+    <div class="ordine-section">
+      <h3>📄 Dati Ordine</h3>
+      <div class="ordine-grid">
+        <div class="ordine-field">
+          <label>Registro</label>
+          <input type="text" id="ord-for-registro" value="01" maxlength="4"
+                 onchange="this.dataset.userModified='true'">
+        </div>
+        <div class="ordine-field">
+          <label>Numero</label>
+          <input type="number" id="ord-for-numero" value="1">
+        </div>
+        <div class="ordine-field">
+          <label>Data</label>
+          <input type="text" id="ord-for-data" readonly>
+        </div>
+      </div>
+    </div>
+    <div class="ordine-section">
+      <h3>🏭 Fornitore</h3>
+      <div class="search-bar mb-12">
+        <span>🔍</span>
+        <input type="text" id="search-fornitore" placeholder="Cerca fornitore..." oninput="APP.debounceSearch('fornitore')">
+      </div>
+      <div id="results-fornitore" class="results-list"></div>
+      <div id="selected-fornitore" class="cliente-info empty"><span>Nessun fornitore selezionato</span></div>
+      <div class="ordine-field mt-12">
+        <label>💳 Modalità Pagamento</label>
+        <select id="ord-for-pagamento" class="pagamento-select">
+          <option value="">-- Seleziona pagamento --</option>
+        </select>
+      </div>
+    </div>
+    <div class="ordine-section">
+      <h3>📦 Articoli</h3>
+      <div class="scan-mode-toggle">
+        <label class="toggle-label"><input type="checkbox" id="fast-scan-ord-for" onchange="APP.toggleFastScan('ordFor')"><span class="toggle-slider"></span></label>
+        <span class="toggle-text">⚡ Scansione veloce</span>
+      </div>
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="search-art-ord-for" placeholder="Cerca articolo..." oninput="APP.debounceSearch('artOrdFor')">
+        <button class="btn-filter-toggle" onclick="APP.toggleArticoliFilters('artOrdFor')">⚙️</button>
+        <button class="btn-scan" onclick="APP.startScan('ordFor')">📷</button>
+      </div>
+      <div class="articoli-filters hidden" id="articoli-filters-artOrdFor">
+        <div class="filter-row">
+          <select id="filter-gruppo-artOrdFor" onchange="APP.applyArticoliFilters('artOrdFor')"><option value="">📦 Tutti i gruppi</option></select>
+          <select id="filter-locazione-artOrdFor" onchange="APP.applyArticoliFilters('artOrdFor')"><option value="">📍 Tutte le locazioni</option></select>
+        </div>
+        <div class="filter-row">
+          <select id="filter-giacenza-artOrdFor" onchange="APP.applyArticoliFilters('artOrdFor')">
+            <option value="">📊 Tutte le giacenze</option>
+            <option value="positive">Con giacenza &gt; 0</option>
+            <option value="zero">Giacenza = 0</option>
+            <option value="negative">Giacenza &lt; 0</option>
+          </select>
+          <button class="btn-reset-filters" onclick="APP.resetArticoliFilters('artOrdFor')">🔄 Reset</button>
+        </div>
+      </div>
+      <div id="results-art-ord-for" class="results-list mt-12"></div>
+      <div class="righe-list" id="righe-ord-for"></div>
+    </div>
+    <div class="ordine-section totali" id="totali-ord-for">
+      <div class="totali-grid">
+        <div class="totale-row"><span>Articoli</span><span id="tot-for-articoli">0</span></div>
+        <div class="totale-row"><span>Quantità totale</span><span id="tot-for-qta">0</span></div>
+        <div class="totale-row totale-importo"><span>Imponibile</span><span id="tot-for-imponibile">€ 0,00</span></div>
+        <div class="totale-row totale-importo"><span>IVA</span><span id="tot-for-iva">€ 0,00</span></div>
+        <div class="totale-row totale-finale"><span>TOTALE ORDINE</span><span id="tot-for-totale">€ 0,00</span></div>
+      </div>
+    </div>
+    <button class="btn-confirm-order btn-fornitore" id="btn-conferma-ord-for" onclick="APP.confermaOrdineFornitore()" disabled>
+      ✅ Conferma Ordine Fornitore
+    </button>
+  </div>
+</div>
+
+<!-- ==================== MODAL: QTY ==================== -->
+<div class="modal-overlay hidden" id="modal-qty">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Inserisci Quantità</h3>
+      <button class="btn-close" onclick="APP.closeQtyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="card" style="margin-bottom:12px">
+        <p style="font-size:12px;color:var(--text-secondary)">Articolo:</p>
+        <p style="font-size:16px;font-weight:600" id="qty-articolo-desc"></p>
+        <p style="font-size:13px;color:var(--accent-primary);font-family:var(--font-mono)" id="qty-articolo-code"></p>
+      </div>
+      <!-- Locazione (solo inventario) -->
+      <div class="card hidden" id="qty-locazione-container" style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;font-weight:500">📍 Locazione:</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="qty-locazione-input" placeholder="Inserisci o seleziona..." list="locazioni-list">
+          <datalist id="locazioni-list"></datalist>
+          <button type="button" onclick="APP.clearLocazioneInput()"
+                  style="padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:8px;font-size:13px;cursor:pointer">✕</button>
+        </div>
+      </div>
+      <!-- Prezzo (ordini clienti e fornitori) -->
+      <div class="card hidden" id="qty-prezzo-container" style="margin-bottom:12px">
+        <span id="qty-prezzo-label">Prezzo unitario (opzionale):</span>
+        <input type="number" id="qty-prezzo-input" step="0.01" min="0" placeholder="0,00">
+      </div>
+      <!-- Numpad -->
+      <div class="numpad-container">
+        <div class="numpad-display">
+          <span class="numpad-value" id="numpad-value">1</span>
+        </div>
+        <div class="numpad-grid">
+          <button class="numpad-btn" onclick="APP.numpadInput('1')">1</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('2')">2</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('3')">3</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('4')">4</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('5')">5</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('6')">6</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('7')">7</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('8')">8</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('9')">9</button>
+          <button class="numpad-btn clear" onclick="APP.numpadClear()">C</button>
+          <button class="numpad-btn" onclick="APP.numpadInput('0')">0</button>
+          <button class="numpad-btn backspace" onclick="APP.numpadBackspace()">⌫</button>
+          <button class="numpad-btn confirm" onclick="APP.numpadConfirm()">✓ CONFERMA</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: CODA ==================== -->
+<div class="modal-overlay hidden" id="modal-queue">
+  <div class="modal-content modal-large">
+    <div class="modal-header">
+      <h3 id="queue-modal-title">Gestione</h3>
+      <button class="btn-close" onclick="APP.closeQueueModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="queue-tabs">
+        <button class="queue-tab active" data-tab="coda" onclick="APP.switchQueueTab('coda')">
+          📤 In Coda <span class="tab-badge" id="tab-coda-count">0</span>
+        </button>
+        <button class="queue-tab" data-tab="storico" onclick="APP.switchQueueTab('storico')">
+          📚 Storico <span class="tab-badge" id="tab-storico-count">0</span>
+        </button>
+      </div>
+      <!-- Tab Coda -->
+      <div class="queue-tab-content active" id="tab-content-coda">
+        <div class="inv-gestione-filters" id="inv-gestione-filters" style="display:none">
+          <select id="inv-filter-locazione" onchange="APP.filterInventarioQueue()"><option value="">📍 Tutte le locazioni</option></select>
+          <select id="inv-filter-gruppo" onchange="APP.filterInventarioQueue()"><option value="">📦 Tutti i gruppi</option></select>
+        </div>
+        <div class="queue-search-bar" id="queue-search-bar" style="display:none">
+          <input type="text" id="queue-search-input" placeholder="🔍 Cerca..." onkeyup="APP.filterQueueList()">
+        </div>
+        <div class="queue-header"><span class="queue-count" id="queue-count">0 elementi</span></div>
+        <div class="queue-tap-hint">
+          <span>👆</span><span>Tocca un elemento per modificare, stampare o condividere</span>
+        </div>
+        <div class="queue-list" id="queue-list"></div>
+        <div class="queue-actions" id="queue-actions"></div>
+      </div>
+      <!-- Tab Storico -->
+      <div class="queue-tab-content" id="tab-content-storico">
+        <div class="storico-search">
+          <input type="text" id="storico-search-input" placeholder="🔍 Cerca per cliente/fornitore/numero..." onkeyup="APP.searchStorico()">
+        </div>
+        <div class="storico-filters">
+          <div class="filter-row">
+            <div class="filter-field"><label>Da data</label><input type="date" id="storico-date-from" onchange="APP.searchStorico()"></div>
+            <div class="filter-field"><label>A data</label><input type="date" id="storico-date-to" onchange="APP.searchStorico()"></div>
+          </div>
+        </div>
+        <div class="storico-list" id="storico-list"></div>
+        <div class="storico-actions"><button class="btn-danger" onclick="APP.clearStoricoConfirm()">🗑️ Azzera Storico</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: DETTAGLIO ==================== -->
+<div class="modal-overlay hidden" id="modal-item-detail">
+  <div class="modal-content modal-large">
+    <div class="modal-header">
+      <h3 id="item-detail-title">Dettaglio</h3>
+      <button class="btn-close" onclick="APP.closeItemDetailModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="item-detail-content"></div>
+      <div class="item-detail-actions" id="item-detail-actions"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: IMPOSTAZIONI ==================== -->
+<div class="modal-overlay hidden" id="modal-settings">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>⚙️ Impostazioni</h3>
+      <button class="btn-close" onclick="APP.closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-section">
+        <h4>📁 Google Drive</h4>
+        <div class="settings-field">
+          <label>Cartella Drive</label>
+          <input type="text" id="settings-folder" placeholder="archivi/Ordini">
+        </div>
+      </div>
+      <div class="settings-section">
+        <h4>🏭 Deposito e Registri</h4>
+        <div class="settings-grid-2">
+          <div class="settings-field">
+            <label>Deposito</label>
+            <input type="text" id="settings-deposito" placeholder="01" maxlength="4">
+          </div>
+          <div class="settings-field" style="opacity:.6;grid-column:span 1"></div>
+          <div class="settings-field">
+            <label>Registro Ordini Clienti</label>
+            <input type="text" id="settings-registro-cli" placeholder="01" maxlength="4">
+          </div>
+          <div class="settings-field">
+            <label>Registro Ordini Fornitori</label>
+            <input type="text" id="settings-registro-for" placeholder="01" maxlength="4">
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h4>👤 Account</h4>
+        <div class="settings-field">
+          <label>Email</label>
+          <input type="text" id="settings-email" readonly>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn-primary" onclick="APP.saveSettings()">💾 Salva Impostazioni</button>
+        <button class="btn-secondary" onclick="APP.openPrintWizard()">🖨️ Configura Stampante</button>
+        <button class="btn-secondary" onclick="APP.refreshData()">🔄 Ricarica Dati</button>
+        <button class="btn-danger" onclick="APP.logout()">🚪 Logout</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: STAMPANTE ==================== -->
+<div class="modal-overlay hidden" id="modal-print-wizard">
+  <div class="modal-content modal-large">
+    <div class="modal-header">
+      <h3>🖨️ Configurazione Stampante Mobile</h3>
+      <button class="btn-close" onclick="APP.closePrintWizard()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="print-wizard-section">
+        <h4>Tipo stampante</h4>
+        <div class="print-type-grid">
+          <button class="print-type-btn" onclick="document.getElementById('printer-type').value='escpos';APP.updatePrintWizardUI()">
+            <span class="print-type-icon">🧾</span>
+            <span class="print-type-label">ESC/POS</span>
+          </button>
+          <button class="print-type-btn" onclick="document.getElementById('printer-type').value='cpcl';APP.updatePrintWizardUI()">
+            <span class="print-type-icon">🏷️</span>
+            <span class="print-type-label">CPCL</span>
+          </button>
+          <button class="print-type-btn" onclick="document.getElementById('printer-type').value='zpl';APP.updatePrintWizardUI()">
+            <span class="print-type-icon">📋</span>
+            <span class="print-type-label">ZPL</span>
+          </button>
+        </div>
+        <input type="hidden" id="printer-type" value="escpos">
+      </div>
+      <div class="print-wizard-section">
+        <h4>Connessione</h4>
+        <div class="printer-field">
+          <label>Tipo connessione</label>
+          <select id="printer-conn" onchange="APP.updatePrintWizardUI()">
+            <option value="network">🌐 Rete TCP/IP</option>
+            <option value="bluetooth">🔵 Bluetooth</option>
+            <option value="usb">🔌 USB</option>
+          </select>
+        </div>
+        <div id="printer-network-fields">
+          <div class="settings-grid-2">
+            <div class="printer-field">
+              <label>Indirizzo IP</label>
+              <input type="text" id="printer-ip" placeholder="192.168.1.100">
+            </div>
+            <div class="printer-field">
+              <label>Porta</label>
+              <input type="number" id="printer-port" placeholder="9100" value="9100">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="print-wizard-section">
+        <h4>Opzioni stampa</h4>
+        <div class="settings-grid-2">
+          <div class="printer-field">
+            <label>Larghezza (caratteri)</label>
+            <select id="printer-width">
+              <option value="32">32 (58mm)</option>
+              <option value="48" selected>48 (80mm)</option>
+              <option value="64">64 (110mm)</option>
+            </select>
+          </div>
+          <div class="printer-field">
+            <label>Charset</label>
+            <select id="printer-charset">
+              <option value="PC858_EURO">PC858 Euro</option>
+              <option value="PC437">PC437</option>
+              <option value="PC850">PC850</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn-primary" onclick="APP.savePrintSettings()">💾 Salva Configurazione</button>
+        <button class="btn-secondary" onclick="APP.testPrint()">🖨️ Test Stampa</button>
+        <button class="btn-secondary" onclick="APP.closePrintWizard()">Chiudi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCANNER ==================== -->
+<div class="scanner-overlay hidden" id="scanner-overlay">
+  <div class="scanner-header">
+    <span class="scanner-title">Scansiona codice</span>
+    <button class="btn-close" style="color:#fff;font-size:22px" onclick="APP.stopScan()">✕</button>
+  </div>
+  <div class="scanner-container"><div id="scanner-reader"></div></div>
+  <div class="scanner-footer">
+    <button class="btn-cancel-scan" onclick="APP.stopScan()">❌ Annulla</button>
+    <p class="scanner-hint hidden" id="scanner-hint">⚡ Modalità veloce attiva</p>
+  </div>
+</div>
+
+<!-- ==================== APP STATE ==================== -->
+<script>
+// Oggetto APP globale con stato iniziale
+const APP = {
+    accessToken: null, tokenExpiry: null, userEmail: null,
+    config: { folder: 'archivi/Ordini', deposito: '01', registroClienti: '01', registroFornitori: '01' },
+    html5QrCode: null, scanMode: null,
+    fastScanMode: { inv: false, ordCli: false, ordFor: false },
+    currentOrdineClienti: { cliente: null, righe: [], registro: '01', numero: 1 },
+    currentOrdineFornitori: { fornitore: null, righe: [], registro: '01', numero: 1 },
+    searchTimers: {}, selectedArticolo: null, qtyContext: null,
+    scanHistory: [], queueContext: null, currentContext: null,
+    searchResults: {}
+};
+</script>
+
+<!-- Moduli JS in ordine di dipendenza -->
+<script src="js/db.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/config.js"></script>
+<script src="js/main.js"></script>
+<script src="js/inventario.js"></script>
+<script src="js/ordini-clienti.js"></script>
+<script src="js/ordini-fornitori.js"></script>
+<script src="js/queue.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/print.js"></script>
+
+</body>
+</html>
