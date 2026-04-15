@@ -819,8 +819,28 @@ APP.processArticoloWithQty = async function(qty, prezzoInserito = null, locazion
             APP.playBeep();
             APP.vibrate(50);
             APP.showToast(`${articolo.codice} → qty ${qty}`, 'success');
-            // Ripristina posizione scroll nella modalità tabellare
+            // Aggiorna il campo readonly nella tabella se siamo in modalità tabellare
             if (APP.invMode === 'locazione' || APP.invMode === 'gruppo') {
+                // Trova l'indice dell'articolo nella tabella
+                const tabIdx = APP.invTabellareData.findIndex(a => a.codice === articolo.codice);
+                if (tabIdx >= 0) {
+                    APP.invTabellareData[tabIdx].qtyInventario = qty;
+                    const input = document.querySelector(`input[data-index="${tabIdx}"]`);
+                    if (input) {
+                        input.value = qty;
+                        input.classList.add('has-value');
+                        // Disabilita il pulsante +
+                        const btn = input?.parentElement?.nextElementSibling?.querySelector('button');
+                        if (btn) btn.disabled = true;
+                    }
+                    // Aggiorna contatore
+                    const countWithQty = APP.invTabellareData.filter(a => a.qtyInventario > 0).length;
+                    const countEl = document.getElementById('inv-tab-count');
+                    if (countEl) countEl.textContent = countWithQty;
+                    const actEl = document.getElementById('inv-tab-actions');
+                    if (actEl) actEl.style.display = 'block';
+                }
+                // Ripristina posizione scroll e highlight
                 requestAnimationFrame(() => {
                     const cont = document.querySelector('.inv-tab-table-container');
                     if (cont) cont.scrollTop = APP.invTabellareScrollPos;

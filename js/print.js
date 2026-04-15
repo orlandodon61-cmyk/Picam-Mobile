@@ -72,20 +72,31 @@ APP.savePrintSettings = function() {
 APP.testPrint = async function() {
     const config = APP.printerConfig;
     if (!config) { APP.showToast('Configura prima la stampante', 'error'); return; }
-    const testData = APP.buildTestPage(config);
+    // Prova a caricare il logo se non ancora in cache
+    if (!APP.logoBase64 && APP.accessToken) {
+        APP.logoBase64 = await APP.loadLogo().catch(() => null);
+    }
+    const testData = await APP.buildTestPage(config);
     await APP.sendToPrinter(testData, config);
 };
 
-APP.buildTestPage = function(config) {
+APP.buildTestPage = async function(config) {
     const type = config.type || 'escpos';
     const w = config.width || 48;
     const line = '─'.repeat(w);
     const center = (txt) => txt.padStart(Math.floor((w + txt.length)/2)).padEnd(w);
 
     switch(type) {
-        case 'escpos': return APP.buildEscPos([
-            { type: 'init' },
-            { type: 'align', v: 'center' },
+        case 'escpos': {
+            const logoBmp = await APP.getLogoEscPos(config).catch(() => null);
+            const testCmds = [{ type: 'init' }];
+            if (logoBmp) {
+                testCmds.push({ type: 'align', v: 'center' });
+                testCmds.push({ type: 'raw', v: logoBmp });
+                testCmds.push({ type: 'text', v: '' });
+            }
+            testCmds.push(
+                { type: 'align', v: 'center' },
             { type: 'bold', v: true },
             { type: 'text', v: 'PICAM v4.0' },
             { type: 'bold', v: false },
@@ -99,7 +110,9 @@ APP.buildTestPage = function(config) {
             { type: 'text', v: line },
             { type: 'feed', lines: 3 },
             { type: 'cut' }
-        ]);
+            );
+            return APP.buildEscPos(testCmds);
+        }
         case 'cpcl': return APP.buildCPCL([
             `! 0 200 200 210 1`,
             `ENCODING UTF-8`,
@@ -126,6 +139,98 @@ APP.buildTestPage = function(config) {
     }
 };
 
+// ---------- LOGO ESC/POS ----------
+
+// Cache logo bitmap per evitare riconversioni
+APP.logoBitmapCache = null;
+
+// Converte un'immagine (url o dataURL) in bitmap ESC/POS 1-bit
+// Ritorna Uint8Array con il comando GS v 0 pronto per la stampa
+APP.imageToEscPosBitmap = async function(imgSrc, targetWidth = 200) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                // Calcola altezza proporzionale
+                const ratio  = img.height / img.width;
+                const w      = Math.min(targetWidth, img.width);
+                const h      = Math.round(w * ratio);
+
+                // Disegna su canvas
+                const canvas = document.createElement('canvas');
+                canvas.width  = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+
+                // Sfondo bianco
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+
+                const imageData = ctx.getImageData(0, 0, w, h);
+                const pixels    = imageData.data;
+
+                // Larghezza in bytes (arrotondata al byte superiore)
+                const widthBytes = Math.ceil(w / 8);
+                // ESC/POS vuole la larghezza in multipli di 8 (byte allineati)
+                const printWidth = widthBytes * 8;
+
+                // Converte ogni pixel in 1 bit (soglia 128: < 128 = nero = 1)
+                const rasterBytes = [];
+                for (let row = 0; row < h; row++) {
+                    for (let byteIdx = 0; byteIdx < widthBytes; byteIdx++) {
+                        let byte = 0;
+                        for (let bit = 0; bit < 8; bit++) {
+                            const col = byteIdx * 8 + bit;
+                            if (col < w) {
+                                const i = (row * w + col) * 4;
+                                // Luminanza media dei 3 canali RGB
+                                const lum = (pixels[i] * 0.299 + pixels[i+1] * 0.587 + pixels[i+2] * 0.114);
+                                if (lum < 128) byte |= (0x80 >> bit); // pixel scuro = bit 1
+                            }
+                        }
+                        rasterBytes.push(byte);
+                    }
+                }
+
+                // Costruisce comando GS v 0
+                // GS v 0 m xL xH yL yH d1...dk
+                // m=0 (normal density), x=widthBytes, y=h
+                const cmd = [];
+                cmd.push(0x1D, 0x76, 0x30, 0x00);   // GS v 0 m=0
+                cmd.push(widthBytes & 0xFF, (widthBytes >> 8) & 0xFF);  // xL xH
+                cmd.push(h & 0xFF, (h >> 8) & 0xFF);                    // yL yH
+                rasterBytes.forEach(b => cmd.push(b));
+
+                resolve(new Uint8Array(cmd));
+            } catch(e) {
+                reject(e);
+            }
+        };
+        img.onerror = () => reject(new Error('Immagine non caricabile'));
+        img.src = imgSrc;
+    });
+};
+
+// Carica e converte il logo (dalla cache o da Drive/pdf.js)
+APP.getLogoEscPos = async function(config) {
+    if (APP.logoBitmapCache) return APP.logoBitmapCache;
+
+    // Usa il logo già caricato da pdf.js se disponibile
+    const logoSrc = APP.logoBase64 || null;
+    if (!logoSrc) return null;
+
+    try {
+        const targetWidth = config.width === 32 ? 160 : config.width === 48 ? 200 : 240;
+        APP.logoBitmapCache = await APP.imageToEscPosBitmap(logoSrc, targetWidth);
+        return APP.logoBitmapCache;
+    } catch(e) {
+        console.warn('Logo ESC/POS non disponibile:', e.message);
+        return null;
+    }
+};
+
 // ---------- GENERA COMANDI STAMPANTE ----------
 
 // ESC/POS
@@ -147,6 +252,9 @@ APP.buildEscPos = function(commands) {
             case 'text':   push(...str(cmd.v || ''), APP.LF); break;
             case 'feed':   for(let i=0; i<(cmd.lines||1); i++) push(APP.LF); break;
             case 'cut':    push(APP.GS,  0x56, 0x41, 0x00); break;
+            case 'raw':    // bytes grezzi (es. bitmap logo GS v 0)
+                if (cmd.v instanceof Uint8Array) cmd.v.forEach(b => bytes.push(b));
+                break;
             case 'barcode':
                 push(APP.GS, 0x6B, 0x04); // Code39
                 push(...str(cmd.v || ''), 0x00); break;
@@ -293,11 +401,16 @@ APP.printMobileOrdine = async function() {
     const ordine = APP.selectedQueueItem;
     if (!ordine) { APP.showToast('Nessun ordine selezionato', 'error'); return; }
 
-    const data = APP.buildOrdineMobile(ordine, APP.printerConfig);
+    // Prova a caricare il logo (usa cache se disponibile)
+    if (!APP.logoBase64 && APP.accessToken) {
+        APP.logoBase64 = await APP.loadLogo().catch(() => null);
+    }
+
+    const data = await APP.buildOrdineMobile(ordine, APP.printerConfig);
     await APP.sendToPrinter(data, APP.printerConfig);
 };
 
-APP.buildOrdineMobile = function(ordine, config) {
+APP.buildOrdineMobile = async function(ordine, config) {
     const type = config.type || 'escpos';
     const w    = config.width || 48;
     const isCliente = ordine.tipo === 'cliente';
@@ -311,8 +424,19 @@ APP.buildOrdineMobile = function(ordine, config) {
     };
 
     if (type === 'escpos') {
-        const cmds = [
-            { type: 'init' },
+        // Tenta di ottenere bitmap logo (1-bit, bianco/nero)
+        const logoBmp = await APP.getLogoEscPos(config).catch(() => null);
+
+        const cmds = [{ type: 'init' }];
+
+        // Logo centrato se disponibile
+        if (logoBmp) {
+            cmds.push({ type: 'align', v: 'center' });
+            cmds.push({ type: 'raw', v: logoBmp });   // già formattato come GS v 0
+            cmds.push({ type: 'text', v: '' });        // riga vuota dopo logo
+        }
+
+        cmds.push(
             { type: 'align', v: 'center' },
             { type: 'bold', v: true },
             { type: 'text', v: isCliente ? 'ORDINE CLIENTE' : 'ORDINE FORNITORE' },
@@ -323,8 +447,8 @@ APP.buildOrdineMobile = function(ordine, config) {
             { type: 'bold', v: true },
             { type: 'text', v: (isCliente ? 'CLI: ' : 'FOR: ') + soggetto.ragSoc1.substring(0, w-5) },
             { type: 'bold', v: false },
-            { type: 'text', v: sep },
-        ];
+            { type: 'text', v: sep }
+        );
         ordine.righe.forEach(riga => {
             cmds.push({ type: 'bold', v: true });
             cmds.push({ type: 'text', v: riga.codice.substring(0, 20) });

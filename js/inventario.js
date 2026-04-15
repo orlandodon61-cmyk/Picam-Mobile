@@ -113,6 +113,9 @@ APP.renderTabellareArticoli = function() {
     APP.invTabellareData.forEach((art, index) => {
         const hasQty = art.qtyInventario > 0;
         const isFocus = index === APP.invFocusIndex;
+        // inputmode="none" impedisce alla tastiera virtuale di aprirsi
+        // Il valore si inserisce solo tramite la modal numpad (doppio tap sulla riga)
+        // Il pulsante + aggiunge 1 direttamente senza tastiera
         html += `
             <tr class="inv-tab-row${isFocus ? ' inv-row-focus' : ''}" data-idx="${index}"
                 onclick="APP.tapTabellareRow(${index})">
@@ -124,10 +127,10 @@ APP.renderTabellareArticoli = function() {
                            class="input-qty ${hasQty ? 'has-value' : ''}"
                            value="${art.qtyInventario || ''}"
                            placeholder="0" min="0"
+                           inputmode="none"
+                           readonly
                            data-index="${index}"
-                           onclick="event.stopPropagation()"
-                           onchange="APP.updateTabellareQty(${index}, this.value)"
-                           onfocus="event.stopPropagation(); APP.focusTabellareRow(${index}); this.select()">
+                           onclick="event.stopPropagation(); APP.tapTabellareRow(${index})">
                 </td>
                 <td>
                     <button class="btn-quick-add"
