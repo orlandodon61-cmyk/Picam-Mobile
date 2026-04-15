@@ -541,27 +541,26 @@
 
 <!-- ==================== MODAL: IMPOSTAZIONI ==================== -->
 <div class="modal-overlay hidden" id="modal-settings">
-  <div class="modal-content">
+  <div class="modal-content modal-large">
     <div class="modal-header">
       <h3>⚙️ Impostazioni</h3>
       <button class="btn-close" onclick="APP.closeSettings()">✕</button>
     </div>
     <div class="modal-body">
+
+      <!-- Sezione Drive e Deposito -->
       <div class="settings-section">
-        <h4>📁 Google Drive</h4>
+        <h4>📁 Google Drive &amp; Deposito</h4>
         <div class="settings-field">
-          <label>Cartella Drive</label>
+          <label>Cartella Drive (percorso relativo)</label>
           <input type="text" id="settings-folder" placeholder="archivi/Ordini">
         </div>
-      </div>
-      <div class="settings-section">
-        <h4>🏭 Deposito e Registri</h4>
-        <div class="settings-grid-2">
+        <div class="settings-grid-2" style="margin-top:8px">
           <div class="settings-field">
             <label>Deposito</label>
             <input type="text" id="settings-deposito" placeholder="01" maxlength="4">
           </div>
-          <div class="settings-field" style="opacity:.6;grid-column:span 1"></div>
+          <div class="settings-field"></div>
           <div class="settings-field">
             <label>Registro Ordini Clienti</label>
             <input type="text" id="settings-registro-cli" placeholder="01" maxlength="4">
@@ -572,17 +571,77 @@
           </div>
         </div>
       </div>
+
+      <!-- Sezione Dati Mittente (intestazione PDF) -->
       <div class="settings-section">
-        <h4>👤 Account</h4>
+        <h4>🏢 Dati Mittente (intestazione ordini PDF)</h4>
+        <p style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">
+          Usati sull'intestazione del PDF quando non è presente il logo su Drive.
+          Se il logo è presente, viene mostrato al posto della ragione sociale.
+        </p>
         <div class="settings-field">
-          <label>Email</label>
+          <label>Ragione Sociale</label>
+          <input type="text" id="settings-mit-ragsoc" placeholder="es. Techmate Srls">
+        </div>
+        <div class="settings-grid-2" style="margin-top:8px">
+          <div class="settings-field" style="grid-column:span 2">
+            <label>Indirizzo</label>
+            <input type="text" id="settings-mit-ind" placeholder="es. Via Cardito 202">
+          </div>
+          <div class="settings-field">
+            <label>CAP</label>
+            <input type="text" id="settings-mit-cap" placeholder="83031" maxlength="5">
+          </div>
+          <div class="settings-field">
+            <label>Città</label>
+            <input type="text" id="settings-mit-loc" placeholder="Ariano Irpino">
+          </div>
+          <div class="settings-field">
+            <label>Provincia</label>
+            <input type="text" id="settings-mit-pro" placeholder="AV" maxlength="2">
+          </div>
+          <div class="settings-field">
+            <label>P.IVA</label>
+            <input type="text" id="settings-mit-piva" placeholder="03153880640">
+          </div>
+          <div class="settings-field" style="grid-column:span 2">
+            <label>Telefono</label>
+            <input type="text" id="settings-mit-tel" placeholder="333 6439999">
+          </div>
+        </div>
+      </div>
+
+      <!-- Sezione Destinazione PDF -->
+      <div class="settings-section">
+        <h4>📄 Destinazione Salvataggio PDF</h4>
+        <div class="settings-field">
+          <label>Metodo salvataggio</label>
+          <select id="settings-save-method">
+            <option value="download">⬇️ Download diretto (cartella Downloads)</option>
+            <option value="share">📤 Condividi — scegli tu la cartella (Android)</option>
+            <option value="drive">☁️ Carica su Google Drive</option>
+          </select>
+        </div>
+        <p style="font-size:11px;color:var(--text-secondary);margin-top:6px">
+          <strong>Download:</strong> va in Download/ su Android (non configurabile dal browser)<br>
+          <strong>Condividi:</strong> apre il pannello di condivisione Android — puoi scegliere Documenti, WhatsApp, email ecc.<br>
+          <strong>Drive:</strong> carica direttamente nella cartella Drive configurata sopra
+        </p>
+      </div>
+
+      <!-- Sezione Account -->
+      <div class="settings-section">
+        <h4>👤 Account Google</h4>
+        <div class="settings-field">
+          <label>Email connessa</label>
           <input type="text" id="settings-email" readonly>
         </div>
       </div>
+
       <div class="settings-actions">
         <button class="btn-primary" onclick="APP.saveSettings()">💾 Salva Impostazioni</button>
-        <button class="btn-secondary" onclick="APP.openPrintWizard()">🖨️ Configura Stampante</button>
-        <button class="btn-secondary" onclick="APP.refreshData()">🔄 Ricarica Dati</button>
+        <button class="btn-secondary" onclick="APP.openPrintWizard()">🖨️ Configura Stampante Mobile</button>
+        <button class="btn-secondary" onclick="APP.refreshData()">🔄 Ricarica Dati da Drive</button>
         <button class="btn-danger" onclick="APP.logout()">🚪 Logout</button>
       </div>
     </div>

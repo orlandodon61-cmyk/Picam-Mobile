@@ -6,10 +6,24 @@
 APP.CONFIG_KEY = 'picam_config_v4';
 
 APP.defaultConfig = {
+    // Drive e deposito
     folder: 'archivi/Ordini',
     deposito: '01',
     registroClienti: '01',
-    registroFornitori: '01'
+    registroFornitori: '01',
+    // Dati mittente (intestazione PDF)
+    mitRagSoc: '',
+    mitInd:    '',
+    mitCap:    '',
+    mitLoc:    '',
+    mitPro:    '',
+    mitPiva:   '',
+    mitTel:    '',
+    // Destinazione salvataggio PDF
+    // 'download' = cartella Downloads (default Android)
+    // 'share'    = Web Share API (utente sceglie la cartella su Android)
+    // 'drive'    = carica su Google Drive
+    saveMethod: 'download'
 };
 
 APP.loadConfig = function() {
@@ -58,12 +72,24 @@ APP.applyRegistroToUI = function() {
 };
 
 APP.openSettings = function() {
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+    // Drive e deposito
     set('settings-folder',        APP.config.folder);
     set('settings-deposito',      APP.config.deposito);
     set('settings-registro-cli',  APP.config.registroClienti);
     set('settings-registro-for',  APP.config.registroFornitori);
-    set('settings-email',         APP.userEmail || '');
+    // Dati mittente
+    set('settings-mit-ragsoc', APP.config.mitRagSoc);
+    set('settings-mit-ind',    APP.config.mitInd);
+    set('settings-mit-cap',    APP.config.mitCap);
+    set('settings-mit-loc',    APP.config.mitLoc);
+    set('settings-mit-pro',    APP.config.mitPro);
+    set('settings-mit-piva',   APP.config.mitPiva);
+    set('settings-mit-tel',    APP.config.mitTel);
+    // Destinazione PDF
+    set('settings-save-method', APP.config.saveMethod);
+    // Account
+    set('settings-email', APP.userEmail || '');
     document.getElementById('modal-settings').classList.remove('hidden');
 };
 
@@ -73,10 +99,24 @@ APP.closeSettings = function() {
 
 APP.saveSettings = function() {
     const v = id => (document.getElementById(id)?.value || '').trim();
+    // Drive e deposito
     APP.config.folder            = v('settings-folder')        || 'archivi/Ordini';
     APP.config.deposito          = v('settings-deposito')      || '01';
     APP.config.registroClienti   = v('settings-registro-cli')  || '01';
     APP.config.registroFornitori = v('settings-registro-for')  || '01';
+    // Dati mittente
+    APP.config.mitRagSoc = v('settings-mit-ragsoc');
+    APP.config.mitInd    = v('settings-mit-ind');
+    APP.config.mitCap    = v('settings-mit-cap');
+    APP.config.mitLoc    = v('settings-mit-loc');
+    APP.config.mitPro    = v('settings-mit-pro');
+    APP.config.mitPiva   = v('settings-mit-piva');
+    APP.config.mitTel    = v('settings-mit-tel');
+    // Destinazione PDF
+    APP.config.saveMethod = v('settings-save-method') || 'download';
+    // Azzera cache logo se cambia cartella Drive
+    APP.logoBase64 = null;
+    APP.logoBitmapCache = null;
     APP.persistConfig();
     APP.applyRegistroToUI();
     APP.closeSettings();

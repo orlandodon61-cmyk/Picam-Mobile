@@ -201,7 +201,7 @@ APP.printOrdineFornitore = async function(showPrices) {
     if (!ordine) return;
     const doc = await APP.generateOrdineProfessionale(ordine, showPrices);
     const fileName = `OrdineFornitore_${ordine.registro}_${ordine.numero}_${APP.formatDateFile(new Date())}.pdf`;
-    APP.downloadPDF(doc, fileName);
+    APP.savePDF(doc, fileName);
 };
 
 APP.shareOrdineFornitore = async function() {
