@@ -196,7 +196,9 @@ APP.loadAllData = async function() {
         const artdep  = await APP.loadExcelFile(folderId, 'artdep.xlsx');
 
         setProgress(60, 'Elaborazione articoli...');
+        console.log(`Articoli da Excel: ${articoli.length} | Codbar: ${codbar.length} | Artdep: ${artdep.length}`);
         const mergedArticoli = APP.mergeArticoli(articoli, codbar, artdep);
+        console.log(`Articoli dopo merge: ${mergedArticoli.length}`);
 
         // DEBUG: verifica campo gruppo e locazione sui primi 3 articoli
         console.log('=== MERGE ARTICOLI - verifica campi ===');
@@ -207,10 +209,12 @@ APP.loadAllData = async function() {
         const conLocazione = mergedArticoli.filter(a => a.locazione && a.locazione !== '').length;
         console.log(`Articoli con gruppo: ${conGruppo}/${mergedArticoli.length} | con locazione: ${conLocazione}/${mergedArticoli.length}`);
 
-        setProgress(65, 'Salvataggio articoli...');
+        setProgress(65, `Salvataggio ${mergedArticoli.length.toLocaleString('it-IT')} articoli...`);
         await DB.saveArticoli(mergedArticoli, (pct) => {
             progressFill.style.width = (65 + pct * 0.1) + '%';
+            progressText.textContent = `Salvataggio articoli... ${pct}%`;
         });
+        console.log(`Salvataggio completato: ${mergedArticoli.length} articoli`);
 
         setProgress(75, 'Caricamento clienti...');
         const clientiRaw = await APP.loadExcelFile(folderId, 'clicom.xlsx');

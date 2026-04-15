@@ -154,36 +154,30 @@ function countStore(storeName) {
 
 async function saveArticoli(articoli, onProgress) {
     await clearStore('articoli');
-    
+
     return new Promise((resolve, reject) => {
         const transaction = db.transaction('articoli', 'readwrite');
         const store = transaction.objectStore('articoli');
-        
-        let processed = 0;
         const total = articoli.length;
-        const batchSize = 500;
-        
-        function processBatch(startIndex) {
-            const endIndex = Math.min(startIndex + batchSize, total);
-            
-            for (let i = startIndex; i < endIndex; i++) {
-                store.put(articoli[i]);
-                processed++;
-            }
-            
-            if (onProgress) {
-                onProgress(Math.round((processed / total) * 100));
-            }
-            
-            if (endIndex < total) {
-                setTimeout(() => processBatch(endIndex), 0);
+
+        // CRITICO: tutti i put() devono avvenire nello stesso ciclo sincrono
+        // senza alcun setTimeout/await intermedio — altrimenti IndexedDB chiude
+        // automaticamente la transazione dopo il primo batch inattivo.
+        // Con 40.000 articoli questo loop dura ~200ms ma la transazione rimane aperta.
+        for (let i = 0; i < total; i++) {
+            store.put(articoli[i]);
+
+            // Aggiorna progress ogni 1000 articoli (chiamata JS pura, non async)
+            if (onProgress && i % 1000 === 0) {
+                onProgress(Math.round((i / total) * 100));
             }
         }
-        
+
+        if (onProgress) onProgress(100);
+
         transaction.oncomplete = () => resolve(total);
-        transaction.onerror = () => reject(transaction.error);
-        
-        processBatch(0);
+        transaction.onerror   = (e) => reject(transaction.error || e);
+        transaction.onabort   = (e) => reject(new Error('Transazione articoli interrotta: ' + (transaction.error?.message || 'abort')));
     });
 }
 
