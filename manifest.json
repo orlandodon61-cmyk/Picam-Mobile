@@ -1,6 +1,6 @@
 {
   "name": "PICAM Inventario & Ordini",
-  "short_name": "PICAM",
+  "short_name": "PICAM Inventario & Ordini",
   "description": "Gestione inventario e ordini mobile",
   "start_url": "./",
   "display": "standalone",

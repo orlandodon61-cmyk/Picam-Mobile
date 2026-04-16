@@ -189,7 +189,7 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     doc.text(soggetto.codice || '',      12, y + 4.2);
     doc.text(soggetto.partitaIva || '',  42, y + 4.2);
     doc.text(codPag,                     82, y + 4.2);
-    doc.text(desPag.substring(0, 28),    98, y + 4.2);
+    doc.text(desPag.substring(0, 24),    98, y + 4.2);  // max 24 per non sforare
     doc.text(APP.config.deposito || '01', 152, y + 4.2);
     doc.text(dataOrd,                   168, y + 4.2);
     doc.text('1',                       190, y + 4.2);
@@ -198,18 +198,26 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
     // ─────────────────────────────────────────
     // SEZIONE 5: HEADER TABELLA ARTICOLI
     // ─────────────────────────────────────────
+    // Layout colonne (left-align, 8pt ≈ 1.8mm/char):
+    //  12  COD (max 15 char ~27mm → fine ~39)
+    //  42  DESC (max 34 char ~61mm → fine ~103)
+    // 106  QTA (max 7 char ~13mm → fine ~119)
+    // 121  U.M. (max 4 char ~7mm → fine ~128)
+    // 132  PREZZO UNIT (max 9 char ~16mm → fine ~148)  [solo con prezzi]
+    // 152  TOTALE RIGA (max 8 char ~14mm → fine ~166)  [solo con prezzi]
+    // 170  DT.CONS. (10 char ~18mm → fine ~188 < 200)
     y += 3;
     pdfRect(doc, 10, y, 190, 7, true, [230,230,230]);
     doc.setFontSize(6.5); doc.setFont(undefined, 'bold');
-    doc.text('COD. ARTICOLO',   12, y + 5);
-    doc.text('DESCRIZIONE',     50, y + 5);
-    doc.text("QTA'",           116, y + 5);
-    doc.text('U.M.',            130, y + 5);
+    doc.text('COD. ARTICOLO',   12,  y + 5);
+    doc.text('DESCRIZIONE',     42,  y + 5);
+    doc.text("QTA'",           106,  y + 5);
+    doc.text('U.M.',           121,  y + 5);
     if (showPrices) {
-        doc.text('PREZZO UNIT.',  144, y + 5);
-        doc.text('TOTALE RIGA',  172, y + 5);
+        doc.text('PREZZO UNIT.', 132, y + 5);
+        doc.text('TOTALE RIGA',  152, y + 5);
     }
-    doc.text('DT.CONS.',        192, y + 5, { align: 'right' });
+    doc.text('DT.CONS.',        170, y + 5);
     y += 7;
 
     // ─────────────────────────────────────────
@@ -225,10 +233,10 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
             // Ripete header tabella sulla nuova pagina
             pdfRect(doc, 10, y, 190, 7, true, [230,230,230]);
             doc.setFontSize(6.5); doc.setFont(undefined, 'bold');
-            doc.text('COD. ARTICOLO', 12, y+5); doc.text('DESCRIZIONE', 50, y+5);
-            doc.text("QTA'", 116, y+5); doc.text('U.M.', 130, y+5);
-            if (showPrices) { doc.text('PREZZO UNIT.', 144, y+5); doc.text('TOTALE RIGA', 172, y+5); }
-            doc.text('DT.CONS.', 192, y+5, { align: 'right' });
+            doc.text('COD. ARTICOLO', 12,  y+5); doc.text('DESCRIZIONE', 42, y+5);
+            doc.text("QTA'", 106, y+5); doc.text('U.M.', 121, y+5);
+            if (showPrices) { doc.text('PREZZO UNIT.', 132, y+5); doc.text('TOTALE RIGA', 152, y+5); }
+            doc.text('DT.CONS.', 170, y+5);
             y += 7;
             doc.setFont(undefined, 'normal'); doc.setFontSize(8);
         }
@@ -242,18 +250,18 @@ APP.generateOrdineProfessionale = async function(ordine, showPrices = true) {
         pdfRowLine(doc, y + 7);
 
         doc.setFontSize(8);
-        doc.text(riga.codice.substring(0, 18),  12, y + 5);
-        doc.text(riga.des1.substring(0, 38),     50, y + 5);
-        doc.text(riga.qty.toFixed(3).replace('.', ','), 116, y + 5);
-        doc.text(riga.um || 'Nr.', 130, y + 5);
+        doc.text(riga.codice.substring(0, 15),                      12,  y + 5);
+        doc.text(riga.des1.substring(0, 34),                        42,  y + 5);
+        doc.text(riga.qty.toFixed(3).replace('.', ','),             106,  y + 5);
+        doc.text((riga.um || 'Nr.').substring(0, 4),                121,  y + 5);
 
         if (showPrices) {
             const totRiga = riga.qty * riga.prezzo;
             totaleMerce += totRiga;
-            doc.text(riga.prezzo.toFixed(4).replace('.', ','),      144, y + 5);
-            doc.text(totRiga.toFixed(2).replace('.', ','),          172, y + 5);
+            doc.text(riga.prezzo.toFixed(4).replace('.', ','),      132,  y + 5);
+            doc.text(totRiga.toFixed(2).replace('.', ','),          152,  y + 5);
         }
-        doc.text(dataOrd, 192, y + 5, { align: 'right' });
+        doc.text(dataOrd,                                           170,  y + 5);
         y += 7;
     });
 

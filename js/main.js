@@ -1006,7 +1006,7 @@ APP.initWithAuth = async function() {
 };
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('PICAM v4.0 - Inizializzazione...');
+    console.log('PICAM v4.01 - Inizializzazione...');
 
     // Carica configurazione
     APP.loadConfig();
