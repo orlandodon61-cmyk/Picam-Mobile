@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#37474F">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>PICAM v4.01</title>
+  <title>PICAM v4.02</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -27,7 +27,7 @@
       <div class="logo-icon-small">📦</div>
       <div class="logo-text">
         <span class="logo-title-inline">PICAM</span>
-        <span class="logo-subtitle-inline">Inventario &amp; Ordini v4.01</span>
+        <span class="logo-subtitle-inline">Inventario &amp; Ordini v4.02</span>
       </div>
     </div>
 
@@ -96,7 +96,7 @@
 <!-- ==================== MENU ==================== -->
 <div id="screen-menu" class="screen">
   <header class="main-header">
-    <div class="header-left"><span class="header-title">PICAM v4.01</span></div>
+    <div class="header-left"><span class="header-title">PICAM v4.02</span></div>
     <div class="header-right">
       <button class="btn-icon-only" onclick="APP.refreshData()">🔄</button>
       <button class="btn-icon-only" onclick="APP.openSettings()">⚙️</button>
@@ -696,6 +696,17 @@
             </div>
           </div>
         </div>
+        <div id="printer-bluetooth-fields" style="display:none">
+          <div class="printer-field">
+            <label>Nome stampante Bluetooth</label>
+            <input type="text" id="printer-bt-name" placeholder="Printer001"
+                   value="Printer001">
+            <small style="color:var(--text-secondary);font-size:11px">
+              Es: Printer001 — PIN abbinamento: 0000<br>
+              La stampante deve essere già abbinata nelle impostazioni Android
+            </small>
+          </div>
+        </div>
       </div>
       <div class="print-wizard-section">
         <h4>Opzioni stampa</h4>
@@ -711,6 +722,7 @@
           <div class="printer-field">
             <label>Charset</label>
             <select id="printer-charset">
+              <option value="CP437">CP437 / Page0 (standard ESC/POS)</option>
               <option value="PC858_EURO">PC858 Euro</option>
               <option value="PC437">PC437</option>
               <option value="PC850">PC850</option>

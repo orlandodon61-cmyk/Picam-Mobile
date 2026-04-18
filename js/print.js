@@ -34,8 +34,9 @@ APP.openPrintWizard = function() {
         set('printer-conn',    APP.printerConfig.conn    || 'network');
         set('printer-ip',      APP.printerConfig.ip      || '192.168.1.100');
         set('printer-port',    APP.printerConfig.port    || '9100');
+        set('printer-bt-name', APP.printerConfig.btName  || 'Printer001');
         set('printer-width',   APP.printerConfig.width   || '48');
-        set('printer-charset', APP.printerConfig.charset || 'PC858_EURO');
+        set('printer-charset', APP.printerConfig.charset || 'CP437');
     }
     APP.updatePrintWizardUI();
     modal.classList.remove('hidden');
@@ -48,6 +49,8 @@ APP.closePrintWizard = function() {
 
 APP.updatePrintWizardUI = function() {
     const connType = document.getElementById('printer-conn')?.value || 'network';
+    const btFields = document.getElementById('printer-bluetooth-fields');
+    if (btFields) btFields.style.display = connType === 'bluetooth' ? 'block' : 'none';
     const networkFields = document.getElementById('printer-network-fields');
     if (networkFields) networkFields.style.display = connType === 'network' ? 'block' : 'none';
 };
@@ -59,8 +62,9 @@ APP.savePrintSettings = function() {
         conn:    v('printer-conn')    || 'network',
         ip:      v('printer-ip')      || '',
         port:    parseInt(v('printer-port')) || 9100,
+        btName:  v('printer-bt-name') || 'Printer001',
         width:   parseInt(v('printer-width'))  || 48,
-        charset: v('printer-charset') || 'PC858_EURO'
+        charset: v('printer-charset') || 'CP437'
     };
     APP.savePrinterConfig(config);
     APP.showToast('Configurazione stampante salvata', 'success');
@@ -236,10 +240,57 @@ APP.getLogoEscPos = async function(config) {
 // ESC/POS
 APP.ESC = 0x1B; APP.GS = 0x1D; APP.LF = 0x0A;
 
+// Encoding cp437 per stampanti termiche ESC/POS (Page0 / codepage 0)
+// CRITICO: il simbolo € NON esiste in cp437/Page0 — sempre usare "Eur"
+// Caratteri cp437 estesi (128-255) mappati dai corrispondenti Unicode
+APP._cp437Map = (function() {
+    // Caratteri speciali cp437 (posizioni 128-255) → codepoint Unicode
+    const tbl = [
+        0x00C7,0x00FC,0x00E9,0x00E2,0x00E4,0x00E0,0x00E5,0x00E7, // 128-135
+        0x00EA,0x00EB,0x00E8,0x00EF,0x00EE,0x00EC,0x00C4,0x00C5, // 136-143
+        0x00C9,0x00E6,0x00C6,0x00F4,0x00F6,0x00F2,0x00FB,0x00F9, // 144-151
+        0x00FF,0x00D6,0x00DC,0x00A2,0x00A3,0x00A5,0x20A7,0x0192, // 152-159
+        0x00E1,0x00ED,0x00F3,0x00FA,0x00F1,0x00D1,0x00AA,0x00BA, // 160-167
+        0x00BF,0x2310,0x00AC,0x00BD,0x00BC,0x00A1,0x00AB,0x00BB, // 168-175
+        0x2591,0x2592,0x2593,0x2502,0x2524,0x2561,0x2562,0x2556, // 176-183
+        0x2555,0x2563,0x2551,0x2557,0x255D,0x255C,0x255B,0x2510, // 184-191
+        0x2514,0x2534,0x252C,0x251C,0x2500,0x253C,0x255E,0x255F, // 192-199
+        0x255A,0x2554,0x2569,0x2566,0x2560,0x2550,0x256C,0x2567, // 200-207
+        0x2568,0x2564,0x2565,0x2559,0x2558,0x2552,0x2553,0x256B, // 208-215
+        0x256A,0x2518,0x250C,0x2588,0x2584,0x258C,0x2590,0x2580, // 216-223
+        0x03B1,0x00DF,0x0393,0x03C0,0x03A3,0x03C3,0x00B5,0x03C4, // 224-231
+        0x03A6,0x0398,0x03A9,0x03B4,0x221E,0x03C6,0x03B5,0x2229, // 232-239
+        0x2261,0x00B1,0x2265,0x2264,0x2320,0x2321,0x00F7,0x2248, // 240-247
+        0x00B0,0x2219,0x00B7,0x221A,0x207F,0x00B2,0x25A0,0x00A0  // 248-255
+    ];
+    // Costruisce mappa inversa Unicode → byte cp437
+    const map = new Map();
+    for (let i = 0; i < tbl.length; i++) map.set(tbl[i], i + 128);
+    return map;
+})();
+
+// Converte stringa in bytes cp437 — € rimpiazzato con "Eur"
+APP.encCP437 = function(s) {
+    // Sostituisce simboli problematici prima della conversione
+    s = s.replace(/€/g, 'Eur').replace(/€/g, 'Eur');
+    const bytes = [];
+    for (let i = 0; i < s.length; i++) {
+        const code = s.charCodeAt(i);
+        if (code < 128) {
+            bytes.push(code);                          // ASCII standard — diretto
+        } else if (APP._cp437Map.has(code)) {
+            bytes.push(APP._cp437Map.get(code));       // Carattere cp437 esteso
+        } else {
+            bytes.push(0x3F);                          // '?' per caratteri non mappabili
+        }
+    }
+    return bytes;
+};
+
 APP.buildEscPos = function(commands) {
     const bytes = [];
     const push = (...bs) => bs.forEach(b => bytes.push(b));
-    const str = s => [...new TextEncoder().encode(s)];
+    const str = s => APP.encCP437(String(s));          // cp437, non UTF-8
 
     commands.forEach(cmd => {
         switch(cmd.type) {
@@ -324,32 +375,117 @@ APP.sendViaNetwork = async function(data, config) {
 };
 
 // Stampa via Bluetooth (Web Bluetooth API)
+// Stampante Mach Power BP-DTPP-022 (e compatibili ESC/POS):
+//   - Nome Bluetooth: "Printer001"  PIN: 0000
+//   - UUID servizio SPP: 00001101-0000-1000-8000-00805f9b34fb
+//   - UUID alternativo (alcuni modelli): 000018f0-0000-1000-8000-00805f9b34fb
+//   - Characteristic SPP: 00002af1-0000-1000-8000-00805f9b34fb
 APP.sendViaBluetooth = async function(data, config) {
     if (!navigator.bluetooth) {
-        throw new Error('Web Bluetooth non supportato su questo browser');
+        throw new Error(
+            'Web Bluetooth non supportato.\n' +
+            'Su Android: usa Chrome (non Firefox/Safari).\n' +
+            'Verifica che il Bluetooth sia attivo.'
+        );
     }
-    try {
-        APP.showToast('Connessione Bluetooth...', 'info');
-        const device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
-            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-        });
-        const server = await device.gatt.connect();
-        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-        const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
-        // Invia in chunk da 512 bytes
-        const CHUNK_SIZE = 512;
+    // UUID SPP standard (Serial Port Profile) — usato dalla maggior parte
+    // delle stampanti termiche Bluetooth inclusa BP-DTPP-022
+    const SPP_SERVICE        = '00001101-0000-1000-8000-00805f9b34fb';
+    const ALT_SERVICE        = '000018f0-0000-1000-8000-00805f9b34fb';
+    const SPP_CHARACTERISTIC = '00002af1-0000-1000-8000-00805f9b34fb';
+
+    // Chunk size per Android BLE: 200 bytes con delay 80ms
+    // Chunk più piccoli + delay maggiore = più affidabile su Android
+    const CHUNK_SIZE  = 200;
+    const CHUNK_DELAY = 80;
+
+    APP.showToast('Ricerca stampante Bluetooth...', 'info');
+
+    let device, server, characteristic;
+
+    try {
+        // Prova prima con filtro nome "Printer" (più preciso)
+        // Se fallisce, prova con acceptAllDevices (mostra tutte le periferiche)
+        try {
+            const btName = (config && config.btName) ? config.btName.trim() : '';
+            const filters = btName
+                ? [{ name: btName }, { namePrefix: btName }]
+                : [{ namePrefix: 'Printer' }, { namePrefix: 'POS' },
+                   { services: [SPP_SERVICE] }, { services: [ALT_SERVICE] }];
+            device = await navigator.bluetooth.requestDevice({
+                filters,
+                optionalServices: [SPP_SERVICE, ALT_SERVICE]
+            });
+        } catch(filterErr) {
+            // Fallback: mostra tutti i dispositivi Bluetooth abbinati
+            APP.showToast('Scegli la stampante dalla lista...', 'info');
+            device = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: [SPP_SERVICE, ALT_SERVICE]
+            });
+        }
+
+        APP.showToast(`Connessione a ${device.name || 'stampante'}...`, 'info');
+        server = await device.gatt.connect();
+
+        // Tenta con SPP UUID, poi con UUID alternativo
+        let service;
+        try {
+            service = await server.getPrimaryService(SPP_SERVICE);
+        } catch(e) {
+            try {
+                service = await server.getPrimaryService(ALT_SERVICE);
+            } catch(e2) {
+                // Ultima risorsa: prende il primo servizio disponibile
+                const services = await server.getPrimaryServices();
+                if (!services.length) throw new Error('Nessun servizio Bluetooth trovato');
+                service = services[0];
+            }
+        }
+
+        // Ottieni la characteristic scrivibile
+        try {
+            characteristic = await service.getCharacteristic(SPP_CHARACTERISTIC);
+        } catch(e) {
+            // Cerca la prima characteristic con proprietà WRITE
+            const chars = await service.getCharacteristics();
+            characteristic = chars.find(c =>
+                c.properties.write || c.properties.writeWithoutResponse
+            );
+            if (!characteristic) throw new Error('Nessuna characteristic scrivibile');
+        }
+
+        // Invia i dati in chunk piccoli (più affidabile su Android BLE)
+        const useWriteWithoutResponse = !characteristic.properties.write &&
+                                         characteristic.properties.writeWithoutResponse;
+        let sent = 0;
         for (let i = 0; i < data.length; i += CHUNK_SIZE) {
             const chunk = data.slice(i, i + CHUNK_SIZE);
-            await characteristic.writeValue(chunk);
-            await new Promise(r => setTimeout(r, 50));
+            if (useWriteWithoutResponse) {
+                await characteristic.writeValueWithoutResponse(chunk);
+            } else {
+                await characteristic.writeValue(chunk);
+            }
+            sent += chunk.length;
+            await new Promise(r => setTimeout(r, CHUNK_DELAY));
         }
-        device.gatt.disconnect();
-        APP.showToast('Stampato via Bluetooth', 'success');
+
+        // Piccola pausa finale prima di disconnettere
+        await new Promise(r => setTimeout(r, 300));
+        server.disconnect();
+        APP.showToast(`Stampato (${sent} bytes)`, 'success');
+
     } catch(e) {
-        if (e.name === 'NotFoundError') {
-            throw new Error('Nessuna stampante Bluetooth trovata');
+        if (server) try { server.disconnect(); } catch(_) {}
+        if (e.name === 'NotFoundError' || e.name === 'NotSupportedError') {
+            throw new Error(
+                'Stampante non trovata.\n' +
+                'Verifica:\n' +
+                '• Stampante accesa e Bluetooth attivo\n' +
+                '• Dispositivo abbinato (PIN: 0000)\n' +
+                '• Nome stampante: Printer001'
+            );
         }
         throw e;
     }
