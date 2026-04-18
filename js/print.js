@@ -133,7 +133,12 @@ APP.buildEscPos = function(commands) {
             case 'feed':
                 for(let i=0; i<(cmd.lines||1); i++) push(APP.LF); break;
             case 'cut':
-                push(APP.GS, 0x56, 0x41, 0x00); break;
+                // Feed 30mm prima del taglio (richiesto dalla maggior parte delle termiche
+                // per portare la carta alla lama) poi taglio completo + parziale come fallback
+                push(APP.ESC, 0x64, 0x06);          // ESC d 6 — avanza 6 righe
+                push(APP.GS,  0x56, 0x00);          // GS V 0 — full cut
+                push(APP.GS,  0x56, 0x01);          // GS V 1 — partial cut (fallback)
+                break;
             case 'raw':
                 if (cmd.v instanceof Uint8Array) cmd.v.forEach(b => bytes.push(b)); break;
         }
@@ -345,9 +350,11 @@ APP.buildOrdineMobile = async function(ordine, config) {
     cmds.push({ type: 'text', v: P.center(`Ordine del ${dataOrd}`, w) });
     cmds.push({ type: 'text', v: '' });
 
-    // Firma (spazio vuoto)
+    // Per accettazione + riga firma
     cmds.push({ type: 'align', v: 'left' });
-    cmds.push({ type: 'text', v: 'Firma: ________________________' });
+    cmds.push({ type: 'text', v: 'Per accettazione:' });
+    cmds.push({ type: 'text', v: '' });
+    cmds.push({ type: 'text', v: '_'.repeat(w) });
     cmds.push({ type: 'feed', lines: 4 });
     cmds.push({ type: 'cut' });
 
