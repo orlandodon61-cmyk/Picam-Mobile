@@ -656,85 +656,113 @@
       <button class="btn-close" onclick="APP.closePrintWizard()">✕</button>
     </div>
     <div class="modal-body">
+
+      <!-- TIPO STAMPANTE -->
       <div class="print-wizard-section">
         <h4>Tipo stampante</h4>
         <div class="print-type-grid">
           <button class="print-type-btn" onclick="document.getElementById('printer-type').value='escpos';APP.updatePrintWizardUI()">
             <span class="print-type-icon">🧾</span>
             <span class="print-type-label">ESC/POS</span>
+            <span style="font-size:10px;color:#888">Termiche 58/80mm</span>
           </button>
           <button class="print-type-btn" onclick="document.getElementById('printer-type').value='cpcl';APP.updatePrintWizardUI()">
             <span class="print-type-icon">🏷️</span>
             <span class="print-type-label">CPCL</span>
+            <span style="font-size:10px;color:#888">Zebra mobile</span>
           </button>
           <button class="print-type-btn" onclick="document.getElementById('printer-type').value='zpl';APP.updatePrintWizardUI()">
             <span class="print-type-icon">📋</span>
             <span class="print-type-label">ZPL</span>
+            <span style="font-size:10px;color:#888">Zebra etichette</span>
           </button>
         </div>
         <input type="hidden" id="printer-type" value="escpos">
       </div>
+
+      <!-- CONNESSIONE -->
       <div class="print-wizard-section">
         <h4>Connessione</h4>
         <div class="printer-field">
-          <label>Tipo connessione</label>
+          <label>Metodo di connessione</label>
           <select id="printer-conn" onchange="APP.updatePrintWizardUI()">
-            <option value="network">🌐 Rete TCP/IP</option>
-            <option value="bluetooth">🔵 Bluetooth</option>
-            <option value="usb">🔌 USB</option>
+            <option value="bluetooth">🔵 Bluetooth (Android)</option>
+            <option value="network">🌐 Rete WiFi / TCP-IP</option>
+            <option value="usb">🔌 USB (Chrome desktop)</option>
           </select>
         </div>
-        <div id="printer-network-fields">
+
+        <!-- Campi Bluetooth -->
+        <div id="printer-bluetooth-fields">
+          <div id="printer-bt-status" class="printer-bt-status-ok"
+               style="padding:8px;border-radius:6px;font-size:12px;margin-bottom:8px">
+            Controllo disponibilità Bluetooth...
+          </div>
+          <div class="printer-field">
+            <label>Nome stampante Bluetooth</label>
+            <input type="text" id="printer-bt-name" placeholder="Printer001" value="Printer001">
+          </div>
+          <div class="printer-bt-guide">
+            <p><strong>Prima di stampare:</strong></p>
+            <ol style="margin:4px 0;padding-left:20px;font-size:12px">
+              <li>Accendi la stampante (LED Bluetooth lampeggia)</li>
+              <li>Android → Impostazioni → Bluetooth → <strong>Abbina nuovo dispositivo</strong></li>
+              <li>Seleziona <strong>Printer001</strong> → PIN: <strong>0000</strong></li>
+              <li>Torna qui e premi <strong>Test Stampa</strong></li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Campi Rete -->
+        <div id="printer-network-fields" style="display:none">
           <div class="settings-grid-2">
             <div class="printer-field">
-              <label>Indirizzo IP</label>
+              <label>Indirizzo IP stampante</label>
               <input type="text" id="printer-ip" placeholder="192.168.1.100">
             </div>
             <div class="printer-field">
-              <label>Porta</label>
+              <label>Porta TCP</label>
               <input type="number" id="printer-port" placeholder="9100" value="9100">
             </div>
           </div>
         </div>
-        <div id="printer-bluetooth-fields" style="display:none">
-          <div class="printer-field">
-            <label>Nome stampante Bluetooth</label>
-            <input type="text" id="printer-bt-name" placeholder="Printer001"
-                   value="Printer001">
-            <small style="color:var(--text-secondary);font-size:11px">
-              Es: Printer001 — PIN abbinamento: 0000<br>
-              La stampante deve essere già abbinata nelle impostazioni Android
-            </small>
-          </div>
-        </div>
       </div>
+
+      <!-- OPZIONI CARTA -->
       <div class="print-wizard-section">
-        <h4>Opzioni stampa</h4>
+        <h4>Opzioni carta</h4>
         <div class="settings-grid-2">
           <div class="printer-field">
-            <label>Larghezza (caratteri)</label>
+            <label>Larghezza carta</label>
             <select id="printer-width">
-              <option value="32">32 (58mm)</option>
-              <option value="48" selected>48 (80mm)</option>
-              <option value="64">64 (110mm)</option>
+              <option value="32">58mm — 32 caratteri</option>
+              <option value="48" selected>80mm — 48 caratteri ✓</option>
+              <option value="64">110mm — 64 caratteri</option>
             </select>
           </div>
           <div class="printer-field">
-            <label>Charset</label>
+            <label>Code page</label>
             <select id="printer-charset">
-              <option value="CP437">CP437 / Page0 (standard ESC/POS)</option>
+              <option value="CP437">CP437 / Page0 — standard ESC/POS ✓</option>
               <option value="PC858_EURO">PC858 Euro</option>
-              <option value="PC437">PC437</option>
               <option value="PC850">PC850</option>
             </select>
           </div>
         </div>
+        <p style="font-size:11px;color:var(--text-secondary);margin-top:6px">
+          <strong>Intestazione termica:</strong> crea il file <strong>Logo.txt</strong>
+          nella tua cartella Drive con il nome e i dati aziendali (una riga per volta).
+          Verrà usato al posto del logo grafico sulla stampante termica.
+        </p>
       </div>
+
+      <!-- AZIONI -->
       <div class="settings-actions">
-        <button class="btn-primary" onclick="APP.savePrintSettings()">💾 Salva Configurazione</button>
+        <button class="btn-primary" onclick="APP.savePrintSettings()">💾 Salva</button>
         <button class="btn-secondary" onclick="APP.testPrint()">🖨️ Test Stampa</button>
         <button class="btn-secondary" onclick="APP.closePrintWizard()">Chiudi</button>
       </div>
+
     </div>
   </div>
 </div>
