@@ -73,6 +73,12 @@ APP.encCP437 = function(s) {
 APP.loadLogoTxt = async function() {
     if (APP.logoTxtLines) return APP.logoTxtLines;
     try {
+        // Assicura token valido prima di interrogare Drive
+        if (APP.ensureValidToken) await APP.ensureValidToken().catch(() => {});
+        if (!APP.accessToken) {
+            console.warn('Logo.txt: nessun token disponibile');
+            return null;
+        }
         const folderId = await APP.findFolder(APP.config.folder);
         const q = folderId
             ? `(name='logo.txt' or name='Logo.txt' or name='LOGO.TXT') and '${folderId}' in parents and trashed=false`
@@ -176,9 +182,10 @@ APP.printMobileOrdine = async function() {
     if (!ordine) { APP.showToast('Nessun ordine selezionato', 'error'); return; }
 
     // Carica Logo.txt (preferito per termica) e logo bitmap (fallback)
-    if (!APP.logoTxtLines && APP.accessToken) {
-        await APP.loadLogoTxt().catch(() => null);
-    }
+    const logoLoaded = await APP.loadLogoTxt().catch(() => null);
+    console.log('Logo.txt:', logoLoaded
+        ? `caricato (${logoLoaded.length} righe: ${logoLoaded[0]})`
+        : 'non trovato — controlla che Logo.txt sia nella cartella Drive configurata');
     if (!APP.logoBase64 && APP.accessToken && !APP.logoTxtLines) {
         await APP.loadLogo().catch(() => null);
     }
@@ -667,6 +674,14 @@ APP.sendViaNetwork = async function(data, config) {
 // Stampa via Bluetooth — SPP (Serial Port Profile)
 // Stampante Mach Power BP-DTPP-022: nome "Printer001", PIN 0000
 // UUID SPP standard: 00001101-0000-1000-8000-00805f9b34fb
+//
+// CONNESSIONE AUTOMATICA: dopo la prima selezione manuale, Chrome
+// ricorda la stampante. Le stampe successive usano getDevices()
+// per riconnettersi senza mostrare il picker.
+// Il device autorizzato è salvato in APP._btDevice.
+
+APP._btDevice = null;   // cache device Bluetooth autorizzato
+
 APP.sendViaBluetooth = async function(data, config) {
     if (!navigator.bluetooth) {
         throw new Error(
@@ -678,49 +693,85 @@ APP.sendViaBluetooth = async function(data, config) {
     const SPP_SERVICE        = '00001101-0000-1000-8000-00805f9b34fb';
     const ALT_SERVICE        = '000018f0-0000-1000-8000-00805f9b34fb';
     const SPP_CHARACTERISTIC = '00002af1-0000-1000-8000-00805f9b34fb';
-    const CHUNK_SIZE  = 200;   // chunk piccoli per Android BLE
-    const CHUNK_DELAY =  80;   // ms tra chunk
-
-    APP.showToast('Ricerca stampante Bluetooth...', 'info');
+    const CHUNK_SIZE  = 200;
+    const CHUNK_DELAY =  80;
+    const btName = (config.btName || 'Printer001').trim();
 
     let server = null;
+
     try {
-        // Filtro per nome configurato, poi fallback generico
-        const btName = (config.btName || '').trim();
-        let device;
-        try {
-            const filters = btName
-                ? [{ name: btName }, { namePrefix: btName.substring(0,6) }]
-                : [{ namePrefix: 'Printer' }, { namePrefix: 'POS' },
-                   { services: [SPP_SERVICE] }, { services: [ALT_SERVICE] }];
-            device = await navigator.bluetooth.requestDevice({
-                filters,
-                optionalServices: [SPP_SERVICE, ALT_SERVICE]
-            });
-        } catch(e) {
-            APP.showToast('Seleziona la stampante dalla lista...', 'info');
-            device = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: [SPP_SERVICE, ALT_SERVICE]
-            });
+        // ── PASSO 1: Trova il device ──────────────────────────────────────
+        // Prova nell'ordine:
+        // A) Device già in cache da questa sessione
+        // B) getDevices() → dispositivi già autorizzati da Chrome (nessun picker)
+        // C) requestDevice() → picker manuale (solo alla prima volta o se B fallisce)
+
+        let device = null;
+
+        // A) Cache sessione
+        if (APP._btDevice) {
+            device = APP._btDevice;
+            console.log('BT: uso device in cache:', device.name);
         }
 
+        // B) Dispositivi già autorizzati (nessun picker, funziona dal 2° uso in poi)
+        if (!device && navigator.bluetooth.getDevices) {
+            try {
+                const authorized = await navigator.bluetooth.getDevices();
+                // Cerca per nome configurato, poi prende il primo disponibile
+                device = authorized.find(d => d.name === btName)
+                      || authorized.find(d => d.name?.toLowerCase().includes('print'))
+                      || authorized[0]
+                      || null;
+                if (device) console.log('BT: device autorizzato trovato:', device.name);
+            } catch(e) {
+                console.warn('getDevices non supportato:', e);
+            }
+        }
+
+        // C) Picker manuale (prima volta o se non trovato)
+        if (!device) {
+            APP.showToast('Seleziona la stampante Bluetooth...', 'info');
+            try {
+                const filters = [
+                    { name: btName },
+                    { namePrefix: btName.substring(0, Math.min(6, btName.length)) }
+                ];
+                device = await navigator.bluetooth.requestDevice({
+                    filters,
+                    optionalServices: [SPP_SERVICE, ALT_SERVICE]
+                });
+            } catch(filterErr) {
+                // Fallback: mostra tutti se il filtro non trova nulla
+                if (filterErr.name === 'NotFoundError') {
+                    device = await navigator.bluetooth.requestDevice({
+                        acceptAllDevices: true,
+                        optionalServices: [SPP_SERVICE, ALT_SERVICE]
+                    });
+                } else throw filterErr;
+            }
+        }
+
+        // Salva in cache per le prossime stampe della stessa sessione
+        APP._btDevice = device;
+
+        // ── PASSO 2: Connessione GATT ─────────────────────────────────────
         APP.showToast(`Connessione a ${device.name || 'stampante'}...`, 'info');
         server = await device.gatt.connect();
 
-        // Trova il servizio (SPP → ALT → primo disponibile)
+        // ── PASSO 3: Trova servizio ───────────────────────────────────────
         let service;
         for (const uuid of [SPP_SERVICE, ALT_SERVICE]) {
             try { service = await server.getPrimaryService(uuid); break; }
-            catch(e) { /* prova il prossimo */ }
+            catch(e) { /* prova uuid alternativo */ }
         }
         if (!service) {
             const services = await server.getPrimaryServices();
-            if (!services.length) throw new Error('Nessun servizio Bluetooth trovato sulla stampante');
+            if (!services.length) throw new Error('Nessun servizio BT trovato sulla stampante');
             service = services[0];
         }
 
-        // Trova la characteristic scrivibile
+        // ── PASSO 4: Trova characteristic scrivibile ──────────────────────
         let characteristic;
         try {
             characteristic = await service.getCharacteristic(SPP_CHARACTERISTIC);
@@ -730,31 +781,43 @@ APP.sendViaBluetooth = async function(data, config) {
             if (!characteristic) throw new Error('Nessuna characteristic scrivibile trovata');
         }
 
-        // Invia dati in chunk
-        const writeWithoutResponse = !characteristic.properties.write;
+        // ── PASSO 5: Invia dati in chunk ──────────────────────────────────
+        const writeNoResp = !characteristic.properties.write && characteristic.properties.writeWithoutResponse;
         let sent = 0;
         for (let i = 0; i < data.length; i += CHUNK_SIZE) {
             const chunk = data.slice(i, i + CHUNK_SIZE);
-            if (writeWithoutResponse) await characteristic.writeValueWithoutResponse(chunk);
-            else                      await characteristic.writeValue(chunk);
+            if (writeNoResp) await characteristic.writeValueWithoutResponse(chunk);
+            else             await characteristic.writeValue(chunk);
             sent += chunk.length;
             await new Promise(r => setTimeout(r, CHUNK_DELAY));
         }
 
-        await new Promise(r => setTimeout(r, 400)); // flush finale
+        await new Promise(r => setTimeout(r, 400));
         server.disconnect();
         APP.showToast(`Stampato OK (${sent} bytes)`, 'success');
 
     } catch(e) {
         if (server) try { server.disconnect(); } catch(_) {}
+        // Se la connessione fallisce, resetta la cache così al prossimo tentativo
+        // viene riproposto il picker
+        if (e.name === 'NetworkError' || e.name === 'InvalidStateError') {
+            APP._btDevice = null;
+        }
         if (e.name === 'NotFoundError' || e.name === 'NotSupportedError') {
+            APP._btDevice = null;
             throw new Error(
                 'Stampante non trovata.\n' +
-                'Verifica: stampante accesa, Bluetooth abbinato, nome corretto.'
+                'Verifica: stampante accesa, Bluetooth abbinato nelle impostazioni Android.'
             );
         }
         throw e;
     }
+};
+
+// Resetta il device BT memorizzato (utile se si vuole cambiare stampante)
+APP.resetBtDevice = function() {
+    APP._btDevice = null;
+    APP.showToast('Stampante Bluetooth reimpostata', 'info');
 };
 
 APP.sendViaUSB = async function(data, config) {

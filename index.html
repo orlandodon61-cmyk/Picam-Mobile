@@ -760,6 +760,10 @@
       <div class="settings-actions">
         <button class="btn-primary" onclick="APP.savePrintSettings()">💾 Salva</button>
         <button class="btn-secondary" onclick="APP.testPrint()">🖨️ Test Stampa</button>
+        <button class="btn-secondary" onclick="APP.resetBtDevice();APP.testPrint()"
+                title="Forza la selezione manuale della stampante Bluetooth">
+          🔄 Cambia stampante BT
+        </button>
         <button class="btn-secondary" onclick="APP.closePrintWizard()">Chiudi</button>
       </div>
 
