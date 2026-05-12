@@ -76,8 +76,7 @@ APP.syncRilevazione = async function() {
 
         const righe = Object.entries(aggregato)
             .map(([cod, qty]) => `${cod};${qty}`)
-            .join('
-');
+            .join('\n');
 
         // Carica su Drive come file di testo
         const folderId = await APP.findFolder(APP.config.folder);
