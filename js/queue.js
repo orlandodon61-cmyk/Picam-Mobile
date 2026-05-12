@@ -120,14 +120,19 @@ APP.renderQueueList = async function(data = null) {
 
     list.innerHTML = html;
 
-    // Azioni
-    actionsEl.innerHTML = `
-        ${context === 'inventario'
-          ? `<button class="btn-primary"   onclick="APP.syncQueue('inventario')">☁️ Sincronizza Inventario</button>
-             <button class="btn-secondary" onclick="APP.syncRilevazione()">📄 Sincronizza Rilevazione</button>`
-          : `<button class="btn-primary"   onclick="APP.syncQueue('${context}')">☁️ Sincronizza su Drive</button>
-             <button class="btn-secondary" onclick="APP.generateReport('${context}')">📄 Report PDF</button>`}
-        <button class="btn-danger" onclick="APP.clearQueue('${context}')">🗑️ Svuota Coda</button>`;
+    // Azioni — concatenazione senza backslash per onclick valido
+    var q = "'";
+    if (context === 'inventario') {
+        actionsEl.innerHTML =
+            "<button class='btn-primary' onclick='APP.syncQueue(" + q + "inventario" + q + ")'>&#9729;&#65039; Sincronizza Inventario</button> " +
+            "<button class='btn-secondary' onclick='APP.syncRilevazione()'>&#128196; Sincronizza Rilevazione</button> " +
+            "<button class='btn-danger' onclick='APP.clearQueue(" + q + "inventario" + q + ")'>&#128465;&#65039; Svuota Coda</button>";
+    } else {
+        actionsEl.innerHTML =
+            "<button class='btn-primary' onclick='APP.syncQueue(" + q + context + q + ")'>&#9729;&#65039; Sincronizza su Drive</button> " +
+            "<button class='btn-secondary' onclick='APP.generateReport(" + q + context + q + ")'>&#128196; Report PDF</button> " +
+            "<button class='btn-danger' onclick='APP.clearQueue(" + q + context + q + ")'>&#128465;&#65039; Svuota Coda</button>";
+    }
 };
 
 APP.loadInvFilters = async function() {
