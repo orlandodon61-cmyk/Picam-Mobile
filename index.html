@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#37474F">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>PICAM v4.03</title>
+  <title>PICAM v4.04</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -27,7 +27,7 @@
       <div class="logo-icon-small">📦</div>
       <div class="logo-text">
         <span class="logo-title-inline">PICAM</span>
-        <span class="logo-subtitle-inline">Inventario &amp; Ordini v4.03</span>
+        <span class="logo-subtitle-inline">Inventario &amp; Ordini v4.04</span>
       </div>
     </div>
 
@@ -96,7 +96,7 @@
 <!-- ==================== MENU ==================== -->
 <div id="screen-menu" class="screen">
   <header class="main-header">
-    <div class="header-left"><span class="header-title">PICAM v4.03</span></div>
+    <div class="header-left"><span class="header-title">PICAM v4.04</span></div>
     <div class="header-right">
       <button class="btn-icon-only" onclick="APP.refreshData()">🔄</button>
       <button class="btn-icon-only" onclick="APP.openSettings()">⚙️</button>
@@ -127,6 +127,14 @@
           <div class="menu-card-desc">Creazione ordini fornitori</div>
         </div>
         <span class="menu-card-badge" id="badge-ordini-fornitori"></span>
+      </div>
+      <div class="menu-card crm" onclick="APP.openCRM()">
+        <div class="menu-card-icon">👥</div>
+        <div class="menu-card-content">
+          <div class="menu-card-title">CRM Clienti</div>
+          <div class="menu-card-desc">Schede, scadenze, ordini, routing</div>
+        </div>
+        <span class="menu-card-badge" id="badge-crm"></span>
       </div>
     </div>
     <div class="menu-stats">
@@ -812,6 +820,107 @@ const APP = {
 <script src="js/sync.js"></script>
 <script src="js/pdf.js"></script>
 <script src="js/print.js"></script>
+  <script src="js/crm.js"></script>
 
+
+<!-- ==================== CRM LISTA ==================== -->
+<div id="screen-crm-lista" class="screen">
+  <header class="main-header">
+    <div class="header-left">
+      <button class="btn-back" onclick="APP.goToMenu()">←</button>
+      <span class="header-title">CRM Clienti</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-icon-only" onclick="APP.crmGetGPS(null)" title="GPS">📍</button>
+      <button class="btn-icon-only" onclick="APP.loadCRM(true)"   title="Ricarica">🔄</button>
+    </div>
+  </header>
+  <!-- Barra ricerca + ordinamento -->
+  <div class="crm-search-bar">
+    <input type="search" id="crm-search" placeholder="🔍 Cliente, città, codice..."
+           oninput="APP.crm.filterText=this.value; APP.renderCrmLista()">
+    <select class="crm-sort-sel" onchange="APP.crm.sortBy=this.value; APP.renderCrmLista()">
+      <option value="rag_soc">A‑Z</option>
+      <option value="scaduto">Scaduto ↓</option>
+      <option value="zona">Zona</option>
+    </select>
+  </div>
+  <!-- Progress bar caricamento -->
+  <div class="crm-progress-wrap">
+    <div id="crm-load-progress" class="crm-progress-bar" style="display:none;width:0%"></div>
+  </div>
+  <div id="crm-lista-count" class="crm-count-bar">—</div>
+  <div id="crm-lista-body" class="crm-lista-container">
+    <p class="crm-empty">Tocca 🔄 per caricare i clienti da Drive</p>
+  </div>
+</div>
+
+<!-- ==================== CRM DETTAGLIO CLIENTE ==================== -->
+<div id="screen-crm-detail" class="screen">
+  <header class="main-header">
+    <div class="header-left">
+      <button class="btn-back" onclick="APP.showScreen('crm-lista')">←</button>
+      <span class="header-title" style="font-size:13px">Cliente</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-icon-only" onclick="APP.crmNavigate()"       title="Mappa">🗺️</button>
+      <button class="btn-icon-only" onclick="APP.crmEmailAll()"       title="Email">✉️</button>
+      <button class="btn-icon-only" onclick="APP.crmWhatsAppCliente()" title="WhatsApp">💬</button>
+    </div>
+  </header>
+
+  <!-- Header cliente: avatar + info + KPI -->
+  <div class="crm-det-header">
+    <div class="crm-det-top">
+      <div id="crm-det-avatar" class="crm-avatar crm-avatar-lg">?</div>
+      <div class="crm-det-info">
+        <div id="crm-det-rag" class="crm-det-rag"></div>
+        <div id="crm-det-cod" class="crm-det-cod"></div>
+        <div id="crm-det-ind" class="crm-det-ind"></div>
+        <div id="crm-det-meta" class="crm-det-meta"></div>
+      </div>
+    </div>
+    <div class="crm-kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Saldo</div>
+        <div id="crm-kpi-saldo" class="kpi-value">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Scaduto</div>
+        <div id="crm-kpi-scaduto" class="kpi-value">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ordini €</div>
+        <div id="crm-kpi-ordini" class="kpi-value">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab bar scorrevole — 6 tab -->
+  <div class="crm-tab-bar" id="crm-tab-bar">
+    <button id="crm-tab-btn-contatti"     class="crm-tab-btn tab-active"
+            onclick="APP.crmOpenTab('contatti')">Contatti</button>
+    <button id="crm-tab-btn-scadenze"     class="crm-tab-btn"
+            onclick="APP.crmOpenTab('scadenze')">Scadenze</button>
+    <button id="crm-tab-btn-ordini"       class="crm-tab-btn"
+            onclick="APP.crmOpenTab('ordini')">Ordini</button>
+    <button id="crm-tab-btn-top-articoli" class="crm-tab-btn"
+            onclick="APP.crmOpenTab('top-articoli')">Top Art.</button>
+    <button id="crm-tab-btn-saldo"        class="crm-tab-btn"
+            onclick="APP.crmOpenTab('saldo')">Saldo</button>
+    <button id="crm-tab-btn-documenti"    class="crm-tab-btn"
+            onclick="APP.crmOpenTab('documenti')">Documenti</button>
+  </div>
+
+  <!-- Contenuto tab -->
+  <div class="crm-tab-content">
+    <div id="crm-tab-contatti"     class="crm-tab-panel"></div>
+    <div id="crm-tab-scadenze"     class="crm-tab-panel" style="display:none"></div>
+    <div id="crm-tab-ordini"       class="crm-tab-panel" style="display:none"></div>
+    <div id="crm-tab-top-articoli" class="crm-tab-panel" style="display:none"></div>
+    <div id="crm-tab-saldo"        class="crm-tab-panel" style="display:none"></div>
+    <div id="crm-tab-documenti"    class="crm-tab-panel" style="display:none"></div>
+  </div>
+</div>
 </body>
 </html>

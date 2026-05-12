@@ -1,4 +1,4 @@
-const CACHE_NAME = 'picam-v4.03';
+const CACHE_NAME = 'picam-v4.04';
 const ASSETS = [
     './', './index.html', './styles.css', './manifest.json',
     './js/db.js', './js/utils.js', './js/config.js', './js/main.js',

@@ -3,7 +3,7 @@
 // ==========================================
 
 const DB_NAME = 'PicamDB';
-const DB_VERSION = 5; // v5: Fix sync, gruppi, getAllArticoliByLocazione/Gruppo
+const DB_VERSION = 6; // v6: Aggiunto store crmClienti per modulo CRM
 
 let db = null;
 
@@ -110,12 +110,23 @@ function initDB() {
                 gruppiStore.createIndex('descrizione', 'descrizione', { unique: false });
             }
             
-            // Store LOCAZIONI (v4) - per gestione locazioni personalizzate
+            // Store LOCAZIONI (v4)
             if (!database.objectStoreNames.contains('locazioni')) {
                 const locStore = database.createObjectStore('locazioni', { keyPath: 'codice' });
             }
 
-            console.log('Schema IndexedDB creato');
+            // Store CRM CLIENTI (v6) - caricato da crm_clienti.xlsx su Drive
+            if (!database.objectStoreNames.contains('crmClienti')) {
+                const crmStore = database.createObjectStore('crmClienti', { keyPath: 'cod_cli' });
+                crmStore.createIndex('rag_soc_1',   'rag_soc_1',   { unique: false });
+                crmStore.createIndex('cod_agente',  'cod_agente',  { unique: false });
+                crmStore.createIndex('cod_zona',    'cod_zona',    { unique: false });
+                crmStore.createIndex('localita',    'localita',    { unique: false });
+                crmStore.createIndex('saldo',       'saldo',       { unique: false });
+                crmStore.createIndex('ultima_fattura', 'ultima_fattura', { unique: false });
+            }
+
+            console.log('Schema IndexedDB v6 creato');
         };
     });
 }
@@ -987,5 +998,74 @@ const DB = {
     getMetadata,
     
     // Stats
-    getStats
+    getStats,
+
+    // CRM Clienti (v6)
+    saveCrmClienti,
+    getAllCrmClienti,
+    getCrmClienteByCode,
+    searchCrmClienti,
+    getCrmClientiByAgente
 };
+
+// ==========================================
+// CRM CLIENTI (v6)
+// ==========================================
+
+async function saveCrmClienti(clienti, onProgress) {
+    await clearStore('crmClienti');
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction('crmClienti', 'readwrite');
+        const store = transaction.objectStore('crmClienti');
+        const total = clienti.length;
+        for (let i = 0; i < total; i++) {
+            store.put(clienti[i]);
+            if (onProgress && i % 500 === 0) onProgress(Math.round((i/total)*100));
+        }
+        if (onProgress) onProgress(100);
+        transaction.oncomplete = () => resolve(total);
+        transaction.onerror   = (e) => reject(transaction.error || e);
+    });
+}
+
+async function getAllCrmClienti() {
+    return new Promise((resolve, reject) => {
+        const store = getStore('crmClienti', 'readonly');
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror   = () => reject(req.error);
+    });
+}
+
+async function getCrmClienteByCode(codCli) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('crmClienti', 'readonly');
+        const req = store.get(String(codCli));
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror   = () => reject(req.error);
+    });
+}
+
+async function searchCrmClienti(query) {
+    const tutti = await getAllCrmClienti();
+    if (!query) return tutti;
+    const q = query.toLowerCase().trim();
+    return tutti.filter(c =>
+        (c.rag_soc_1||'').toLowerCase().includes(q) ||
+        (c.rag_soc_2||'').toLowerCase().includes(q) ||
+        (c.localita||'').toLowerCase().includes(q)   ||
+        (c.cod_cli||'').toLowerCase().includes(q)    ||
+        (c.partita_iva||'').toLowerCase().includes(q)
+    );
+}
+
+async function getCrmClientiByAgente(codAgente) {
+    return new Promise((resolve, reject) => {
+        const store = getStore('crmClienti', 'readonly');
+        const idx = store.index('cod_agente');
+        const req = idx.getAll(String(codAgente));
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror   = () => reject(req.error);
+    });
+}
+

@@ -353,3 +353,218 @@ input:checked+.toggle-slider:before{transform:translateX(20px)}
     display: block; margin-top: 4px;
     color: var(--text-secondary); font-size: 11px; line-height: 1.4;
 }
+
+/* ═══════════════════════════════════════════════════
+   CRM v2 — Stili completi
+   ═══════════════════════════════════════════════════ */
+
+/* Menu card CRM */
+.menu-card.crm { border-left: 4px solid #7B1FA2; }
+
+/* ── Lista Clienti ─────────────────────────────── */
+.crm-search-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px;
+    background: var(--bg-secondary, #f5f5f5);
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+    position: sticky; top: 56px; z-index: 10;
+}
+.crm-search-bar input {
+    flex: 1; padding: 8px 12px; border-radius: 20px;
+    border: 1px solid #ccc; font-size: 14px;
+    background: white; outline: none;
+}
+.crm-sort-sel {
+    padding: 6px 8px; border-radius: 8px;
+    border: 1px solid #ccc; font-size: 12px;
+    background: white; cursor: pointer;
+}
+.crm-progress-wrap {
+    height: 3px; background: transparent; overflow: hidden;
+}
+.crm-progress-bar {
+    height: 3px; background: #7B1FA2;
+    transition: width .3s ease;
+}
+.crm-count-bar {
+    font-size: 11px; color: var(--text-secondary);
+    padding: 4px 12px;
+    background: var(--bg-secondary, #f5f5f5);
+    border-bottom: 1px solid var(--border-color, #eee);
+}
+.crm-lista-container {
+    overflow-y: auto;
+    height: calc(100vh - 130px);
+}
+.crm-list-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color, #eee);
+    cursor: pointer; transition: background .12s;
+}
+.crm-list-item:active { background: #f0f4ff; }
+.crm-list-body { flex: 1; min-width: 0; }
+.crm-list-main {
+    display: flex; justify-content: space-between;
+    align-items: baseline; margin-bottom: 2px;
+}
+.crm-list-rag  { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+.crm-list-cod  { font-size: 11px; color: var(--text-secondary); }
+.crm-list-sub  { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-secondary); }
+.crm-list-arrow { color: #bbb; font-size: 18px; flex-shrink: 0; }
+.crm-empty     { text-align: center; color: var(--text-secondary); padding: 32px 16px; font-size: 14px; }
+
+/* Avatar */
+.crm-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: white; flex-shrink: 0;
+}
+.crm-avatar-lg {
+    width: 48px; height: 48px; font-size: 20px;
+}
+
+/* Badge */
+.crm-badge {
+    font-size: 11px; padding: 1px 6px; border-radius: 10px;
+    font-weight: 500; white-space: nowrap;
+}
+.badge-ok      { background: #e3f2fd; color: #1565c0; }
+.badge-debito  { background: #ffebee; color: #c62828; }
+.badge-scaduto { background: #fff3e0; color: #e65100; }
+
+/* ── Header Dettaglio ──────────────────────────── */
+.crm-det-header {
+    background: #F3E5F5;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid #CE93D8;
+}
+.crm-det-top {
+    display: flex; gap: 10px; align-items: flex-start;
+    margin-bottom: 8px;
+}
+.crm-det-rag  { font-size: 15px; font-weight: 600; }
+.crm-det-cod  { font-size: 11px; color: #7B1FA2; font-weight: 600; }
+.crm-det-ind  { font-size: 12px; color: #555; }
+.crm-det-meta { font-size: 11px; color: #777; margin-top: 2px; }
+
+/* KPI */
+.crm-kpi-row  { display: flex; gap: 6px; }
+.kpi-card     { flex: 1; background: white; border-radius: 8px; padding: 5px 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.kpi-label    { font-size: 10px; color: #888; margin-bottom: 2px; }
+.kpi-value    { font-size: 13px; font-weight: 600; color: #1565c0; }
+.kpi-value.kpi-danger { color: #c62828; }
+.kpi-value.kpi-ok     { color: #2e7d32; }
+
+/* ── Tab Bar scorrevole ────────────────────────── */
+.crm-tab-bar {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    background: white;
+    border-bottom: 2px solid #e0e0e0;
+    position: sticky; top: 56px; z-index: 10;
+}
+.crm-tab-bar::-webkit-scrollbar { display: none; }
+.crm-tab-btn {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    padding: 10px 14px;
+    border: none; background: transparent;
+    font-size: 12px; color: #666; cursor: pointer;
+    border-bottom: 3px solid transparent; margin-bottom: -2px;
+    white-space: nowrap; transition: all .15s;
+}
+.crm-tab-btn.tab-active {
+    color: #7B1FA2; border-bottom-color: #7B1FA2; font-weight: 600;
+}
+
+/* ── Contenuto Tab ─────────────────────────────── */
+.crm-tab-content {
+    overflow-y: auto;
+    height: calc(100vh - 238px);
+}
+.crm-tab-panel { padding: 8px; }
+
+/* Summary row */
+.crm-summary {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 4px; margin-bottom: 6px;
+    font-size: 13px; font-weight: 500;
+}
+.crm-scad-warn { color: #c62828; font-weight: 600; }
+
+/* Contatti */
+.crm-contact-card {
+    background: white; border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.crm-contact-main { border-left: 4px solid #7B1FA2; }
+.crm-contact-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.crm-contact-qual { font-size: 11px; color: #888; font-weight: 400; margin-left: 6px; }
+.crm-contact-info { font-size: 11px; color: #777; margin-top: 4px; }
+.crm-contact-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.btn-contact {
+    padding: 5px 10px; border-radius: 16px; border: none;
+    font-size: 12px; cursor: pointer;
+    background: #e3f2fd; color: #1565c0;
+}
+.btn-contact.btn-wa    { background: #e8f5e9; color: #2e7d32; }
+.btn-contact.btn-mail  { background: #fce4ec; color: #880e4f; }
+.btn-contact.btn-maps  { background: #fff3e0; color: #e65100; }
+
+/* Tabelle CRM */
+.crm-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px; margin-top: 4px;
+}
+.crm-table thead th {
+    background: #F3E5F5; color: #7B1FA2;
+    padding: 6px 6px; text-align: left;
+    font-weight: 600; border-bottom: 2px solid #CE93D8;
+    position: sticky; top: 0; z-index: 1;
+    white-space: nowrap;
+}
+.crm-table tbody tr  { border-bottom: 1px solid #eee; }
+.crm-table tbody td  { padding: 6px 6px; vertical-align: top; }
+.crm-table tbody tr:nth-child(even) { background: #fafafa; }
+.crm-table tbody tr.row-danger { background: #fff5f5; }
+.crm-table tbody tr.row-warn   { background: #fffde7; }
+.td-num   { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Stato badge */
+.stato-badge {
+    display: inline-block; padding: 1px 6px; border-radius: 8px;
+    font-size: 10px; font-weight: 600;
+}
+.stato-SCADUTO      { background: #ffebee; color: #c62828; }
+.stato-In_scadenza  { background: #fff3e0; color: #e65100; }
+.stato-Aperto       { background: #e8f5e9; color: #2e7d32; }
+
+/* Saldo card */
+.crm-saldo-card {
+    background: white; border-radius: 10px;
+    padding: 14px 16px; margin: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.1);
+}
+.crm-saldo-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; font-size: 14px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.crm-saldo-divider {
+    height: 2px; background: #7B1FA2; margin: 8px 0;
+}
+.crm-saldo-total {
+    font-weight: 700; font-size: 15px;
+    border-bottom: none;
+}
+
+/* Wizard Stampante — già presenti, mantenuti */
+.printer-bt-status-ok    { background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7; }
+.printer-bt-status-error { background:#ffebee;color:#c62828;border:1px solid #ef9a9a; }
+.printer-bt-guide        { background:var(--bg-secondary,#f5f5f5);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:12px; }
+.printer-field small     { display:block;margin-top:4px;color:var(--text-secondary);font-size:11px;line-height:1.4; }
