@@ -1,570 +1,206 @@
-/* ==========================================
-   PICAM v4.0 - styles.css
-   ========================================== */
+# 📦 PICAM Mobile v4.0
 
-:root {
-  --bg-primary:    #263238;
-  --bg-secondary:  #37474F;
-  --bg-card:       #ECEFF1;
-  --bg-input:      #F5F5F5;
-  --accent-primary:#1976D2;
-  --accent-green:  #388E3C;
-  --accent-red:    #D32F2F;
-  --accent-amber:  #F57C00;
-  --accent-fornit: #5E35B1;
-  --text-primary:  #212121;
-  --text-secondary:#757575;
-  --text-light:    #ECEFF1;
-  --border-color:  #CFD8DC;
-  --shadow:        0 2px 8px rgba(0,0,0,.15);
-  --radius:        12px;
-  --radius-sm:     8px;
-  --font-mono:     'Courier New', monospace;
-}
+**Progressive Web App per la gestione mobile di inventario e ordini, integrata con il gestionale Picam ERP.**
 
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:var(--text-primary);background:var(--bg-primary)}
+Funziona su qualsiasi smartphone o tablet Android/iOS tramite Chrome, senza installazione di app native. Sincronizza i dati con Google Drive per l'importazione nel gestionale Picam (Faircom c-tree Plus).
 
-/* ---- SCREENS ---- */
-.screen{display:none;height:100dvh;overflow:hidden;flex-direction:column}
-.screen.active{display:flex}
+---
 
-/* ---- HEADER ---- */
-.main-header{background:var(--bg-secondary);color:var(--text-light);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;min-height:52px;flex-shrink:0;box-shadow:var(--shadow)}
-.main-header.header-fornitori{background:var(--accent-fornit)}
-.header-left{display:flex;align-items:center;gap:10px}
-.header-right{display:flex;align-items:center;gap:6px}
-.header-title{font-size:17px;font-weight:700;letter-spacing:.5px}
-.btn-back{background:rgba(255,255,255,.2);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.btn-icon-only{background:rgba(255,255,255,.15);border:none;color:#fff;padding:6px 10px;border-radius:8px;font-size:16px;cursor:pointer}
-.btn-queue-main{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px}
-.queue-badge{background:#FF5722;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700}
+## ✨ Funzionalità
 
-/* ---- TOAST ---- */
-#toast-container{position:fixed;top:60px;right:12px;z-index:9999;display:flex;flex-direction:column;gap:6px}
-.toast{padding:10px 16px;border-radius:10px;color:#fff;font-size:13px;font-weight:500;box-shadow:var(--shadow);max-width:280px;animation:slideIn .25s ease}
-.toast.success{background:#388E3C}.toast.error{background:#D32F2F}.toast.info{background:#1976D2}.toast.warning{background:#F57C00}
-@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+### 📋 Inventario Tri-Modale
+- **Scansione** — ricerca testuale + scanner QR/barcode da fotocamera; fast scan (qty=1 automatico)
+- **Per Locazione** — tabella articoli di una corsia/scaffale; tocco singolo = lente ingrandimento; doppio tocco = inserimento quantità; ritorno automatico alla posizione precedente
+- **Per Gruppo Merceologico** — come per locazione, filtrato per categoria merceologica
+- Tastiera virtuale soppressa durante la navigazione tabellare (`inputmode="none"`)
 
-/* ---- SETUP SCREEN ---- */
-#screen-setup{background:var(--bg-primary);align-items:center;justify-content:center;overflow-y:auto}
-.setup-container{width:100%;max-width:420px;padding:20px 16px;display:flex;flex-direction:column;gap:14px}
-.logo-header{display:flex;align-items:center;gap:12px;padding:8px 0 4px}
-.logo-icon-small{font-size:32px}
-.logo-title-inline{font-size:22px;font-weight:700;color:#fff;display:block}
-.logo-subtitle-inline{font-size:12px;color:rgba(255,255,255,.65);display:block}
-.setup-step{background:rgba(255,255,255,.08);border-radius:var(--radius);padding:14px;border:1px solid rgba(255,255,255,.12)}
-.setup-step.disabled{opacity:.5;pointer-events:none}
-.setup-step.completed .step-header .step-number{background:var(--accent-green);color:#fff}
-.step-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.step-number{background:rgba(255,255,255,.2);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
-.step-title{color:#fff;font-size:15px;font-weight:600}
-.config-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px}
-.config-field-folder{grid-column:1}
-.ordine-field label{display:block;font-size:11px;color:rgba(255,255,255,.7);margin-bottom:4px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
-.ordine-field input,.ordine-field select,.pagamento-select{width:100%;padding:9px 12px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#fff;font-size:14px}
-.ordine-field input::placeholder{color:rgba(255,255,255,.4)}
-.status-message{margin-top:8px;padding:8px 12px;border-radius:8px;font-size:13px;min-height:36px;color:rgba(255,255,255,.8)}
-.status-message.success{background:rgba(56,142,60,.3);color:#A5D6A7}
-.status-message.error{background:rgba(211,47,47,.3);color:#EF9A9A}
-.status-message.loading{background:rgba(25,118,210,.3);color:#90CAF9}
-.status-message.warning{background:rgba(245,124,0,.3);color:#FFCC80}
-.progress-container{margin-top:8px}
-.progress-bar{background:rgba(255,255,255,.15);border-radius:8px;height:8px;overflow:hidden}
-.progress-fill{background:var(--accent-primary);height:100%;border-radius:8px;transition:width .3s ease}
-.progress-text{color:rgba(255,255,255,.7);font-size:12px;margin-top:6px;text-align:center}
-.skip-option-card{background:rgba(255,255,255,.08);border-radius:var(--radius);padding:10px}
-.btn-skip-full{width:100%;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px;justify-content:center}
-.skip-count{font-size:12px;opacity:.7}
+### 🛒 Ordini Clienti
+- Ricerca clienti, selezione articoli con barcode o testo
+- **Prezzo vendita editabile** (sfondo verde) pre-compilato con ultimo prezzo
+- Calcolo automatico IVA, imponibile e totale ordine
+- Stampa PDF professionale con/senza prezzi
+- Condivisione tramite Web Share API
 
-/* ---- BUTTONS ---- */
-.btn-primary{width:100%;background:var(--accent-primary);color:#fff;border:none;padding:13px 16px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
-.btn-primary:disabled{opacity:.5;pointer-events:none}
-.btn-secondary{width:100%;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);padding:11px 16px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer}
-.btn-danger{width:100%;background:var(--accent-red);color:#fff;border:none;padding:11px 16px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer}
-.btn-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-secondary);padding:4px 8px;border-radius:6px}
+### 🏭 Ordini Fornitori
+- Stesso flusso degli ordini clienti
+- **Prezzo acquisto editabile** (sfondo giallo) pre-compilato con ultimo prezzo acquisto
+- Modalità pagamento selezionabile
 
-/* ---- MENU ---- */
-#screen-menu .menu-container{flex:1;overflow-y:auto;padding:16px}
-.menu-grid{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
-.menu-card{background:#fff;border-radius:var(--radius);padding:16px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);cursor:pointer;position:relative;border-left:4px solid var(--accent-primary);transition:transform .15s}
-.menu-card:active{transform:scale(.98)}
-.menu-card.fornitori{border-left-color:var(--accent-fornit)}
-.menu-card-icon{font-size:32px;width:44px;text-align:center;flex-shrink:0}
-.menu-card-title{font-size:16px;font-weight:700;color:var(--text-primary)}
-.menu-card-desc{font-size:12px;color:var(--text-secondary);margin-top:2px}
-.menu-card-badge{position:absolute;top:10px;right:10px;background:var(--accent-red);color:#fff;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:700}
-.menu-stats{background:#fff;border-radius:var(--radius);padding:14px;display:flex;justify-content:space-around;box-shadow:var(--shadow)}
-.stat-item{text-align:center}
-.stat-value{display:block;font-size:22px;font-weight:700;color:var(--accent-primary)}
-.stat-label{display:block;font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+### ☁️ Sincronizzazione Google Drive
+- **Inventario** → `INVENMAG.xlsx`
+- **Ordini Clienti** → `ordini-anagrafiche` + `ordini-testate` + `ordini-dettagli` (pipe-delimited)
+- **Ordini Fornitori** → `ordfornitori-anagrafica` + `ordfornitori-testate` + `ordfornitori-dettagli`
+- Storico ordini sincronizzato come JSON su Drive
 
-/* ---- INVENTARIO ---- */
-#screen-inventario{overflow:hidden}
-#screen-inventario > div{flex:1;overflow-y:auto;padding:14px}
-.inv-mode-selector{background:#fff;border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
-.inv-mode-title{font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;text-align:center}
-.inv-mode-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.inv-mode-btn{background:var(--bg-input);border:2px solid var(--border-color);border-radius:10px;padding:12px 6px;cursor:pointer;text-align:center;transition:all .15s}
-.inv-mode-btn:active{background:var(--accent-primary);border-color:var(--accent-primary);color:#fff}
-.inv-mode-icon{font-size:22px;display:block;margin-bottom:4px}
-.inv-mode-label{font-size:13px;font-weight:600;display:block}
-.inv-mode-desc{font-size:10px;color:var(--text-secondary);display:block}
-.btn-change-mode{background:none;border:none;color:var(--accent-primary);font-size:13px;padding:4px 0;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:4px}
-.search-bar{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border-color);border-radius:10px;padding:8px 12px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-.search-bar input{flex:1;border:none;background:none;font-size:15px;color:var(--text-primary);outline:none}
-.btn-scan{background:var(--accent-primary);border:none;color:#fff;padding:6px 12px;border-radius:8px;font-size:16px;cursor:pointer}
-.btn-filter-toggle{background:none;border:none;font-size:16px;cursor:pointer;color:var(--text-secondary)}
-.result-item{background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;border:1px solid var(--border-color);transition:background .1s}
-.result-item:active{background:#E3F2FD}
-.result-item.empty{color:var(--text-secondary);font-size:13px;text-align:center}
-.result-code{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--accent-primary)}
-.result-desc{font-size:14px;font-weight:500;margin-top:1px}
-.result-sub{font-size:12px;color:var(--text-secondary);margin-top:2px}
-.scan-mode-toggle{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.toggle-label{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
-.toggle-label input{opacity:0;width:0;height:0}
-.toggle-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:12px;transition:.3s}
-.toggle-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
-input:checked+.toggle-slider{background:var(--accent-primary)}
-input:checked+.toggle-slider:before{transform:translateX(20px)}
-.toggle-text{font-size:13px;color:var(--text-secondary)}
-.articoli-filters{background:#fff;border-radius:10px;padding:10px;margin-bottom:10px;border:1px solid var(--border-color)}
-.articoli-filters.hidden{display:none}
-.filter-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
-.filter-row select{padding:8px;border:1px solid var(--border-color);border-radius:8px;font-size:13px;background:#fff}
-.btn-reset-filters{background:var(--bg-input);border:1px solid var(--border-color);padding:8px;border-radius:8px;font-size:12px;cursor:pointer}
-.history-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border-color)}
-.history-code{font-family:var(--font-mono);font-size:12px;color:var(--accent-primary);font-weight:600;min-width:80px}
-.history-desc{flex:1;font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.history-qty{font-size:12px;font-weight:700;color:var(--accent-green)}
+### 🖨️ Stampa
+- **PDF professionale** — layout unificato clienti/fornitori; logo aziendale da Drive; fincature 0.2pt; totali con IVA
+- **Destinazione configurabile**: Download / Condividi (scegli cartella su Android) / Google Drive
+- **Stampante termica mobile**: ESC/POS (con logo bitmap 1-bit), CPCL, ZPL; connessione TCP/Bluetooth/USB
 
-/* ---- INVENTARIO TABELLARE ---- */
-.inv-tab-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-.inv-tab-info{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--text-primary)}
-.inv-tab-selector select{width:100%;padding:10px 12px;border:1px solid var(--border-color);border-radius:10px;font-size:14px;background:#fff;margin-bottom:10px}
-.inv-tab-table-container{flex:1;overflow-y:auto;border-radius:10px;border:1px solid var(--border-color);background:#fff;max-height:calc(100dvh - 340px)}
-.inv-tab-table{width:100%;border-collapse:collapse;font-size:13px}
-.inv-tab-table th{background:var(--bg-secondary);color:#fff;padding:8px 6px;position:sticky;top:0;z-index:1;font-size:12px;font-weight:600;text-align:left}
-.inv-tab-row{transition:background .15s;cursor:pointer}
-.inv-tab-row:nth-child(even){background:#FAFAFA}
-.inv-tab-row:active{background:#E3F2FD}
-.inv-tab-row.inv-row-focus{background:#E3F2FD !important;box-shadow:inset 3px 0 0 var(--accent-primary)}
-.inv-tab-table td{padding:6px;border-bottom:1px solid #F0F0F0;vertical-align:middle}
-.cell-code{font-family:var(--font-mono);font-size:12px;color:var(--accent-primary);font-weight:600;max-width:80px;word-break:break-all}
-.cell-desc{max-width:120px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cell-loc{font-size:11px;color:var(--text-secondary);max-width:50px}
-.input-qty{width:64px;padding:5px 6px;border:2px solid var(--border-color);border-radius:6px;text-align:right;font-size:14px;font-weight:600;background:#fff}
-.input-qty.has-value{border-color:var(--accent-green);background:#F1F8E9;color:var(--accent-green)}
-.btn-quick-add{background:var(--accent-green);color:#fff;border:none;width:28px;height:28px;border-radius:6px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.btn-quick-add:disabled{background:#ccc;cursor:not-allowed}
-.inv-tab-empty{text-align:center;padding:24px;color:var(--text-secondary);font-size:14px}
-.inv-tab-actions{margin-top:10px;padding:10px 0}
-.inv-tab-count{font-weight:700}
+---
 
-/* ---- LENTE DI INGRANDIMENTO ---- */
-.inv-magnifier{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#263238;color:#fff;border-radius:14px;padding:14px 18px;z-index:8888;box-shadow:0 4px 24px rgba(0,0,0,.4);min-width:280px;max-width:90vw;opacity:0;pointer-events:none;transition:opacity .2s}
-.inv-magnifier.visible{opacity:1}
-.mag-code{font-family:var(--font-mono);font-size:18px;font-weight:700;color:#90CAF9;margin-bottom:4px}
-.mag-desc{font-size:16px;font-weight:600;margin-bottom:2px}
-.mag-desc2{font-size:13px;color:rgba(255,255,255,.7)}
-.mag-info{font-size:12px;color:rgba(255,255,255,.7);margin-top:6px}
-.mag-hint{font-size:11px;color:rgba(255,255,255,.4);margin-top:6px;text-align:center}
+## 🏗️ Architettura
 
-/* ---- ORDINI ---- */
-#screen-ordini-clienti,#screen-ordini-fornitori{overflow:hidden}
-.ordine-container{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
-.ordine-section{background:#fff;border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
-.ordine-section h3{font-size:14px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
-.ordine-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.ordine-field{display:flex;flex-direction:column;gap:4px}
-.ordine-field label{font-size:11px;color:var(--text-secondary);font-weight:500;text-transform:uppercase;letter-spacing:.4px}
-.ordine-field input,.ordine-field select,.pagamento-select{padding:9px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:14px;background:#fff;color:var(--text-primary)}
-.soggetto-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.soggetto-name{font-size:15px;font-weight:700;color:var(--text-primary)}
-.soggetto-name2{font-size:13px;color:var(--text-secondary)}
-.soggetto-detail{font-size:12px;color:var(--text-secondary);margin-top:2px}
-.btn-remove-soggetto{background:var(--accent-red);color:#fff;border:none;width:28px;height:28px;border-radius:50%;font-size:14px;cursor:pointer;flex-shrink:0}
-.cliente-info.empty{color:var(--text-secondary);font-size:13px;padding:8px 0}
-.cliente-info.selected{padding:2px 0}
-.riga-item{display:flex;align-items:center;gap:8px;padding:10px;background:#FAFAFA;border-radius:10px;border:1px solid var(--border-color);margin-bottom:6px}
-.riga-info{flex:1;min-width:0}
-.riga-code{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-primary)}
-.riga-desc{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.riga-details{display:flex;gap:10px;flex-wrap:wrap;margin-top:3px}
-.riga-details span{font-size:11px;color:var(--text-secondary)}
-.riga-prezzo-badge{background:#FFF8E1;border:1px solid #FFE082;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;color:#F57C00}
-.riga-totale{font-weight:700;color:var(--accent-green)}
-.btn-remove-riga{background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;padding:4px}
-.totali-grid{display:flex;flex-direction:column;gap:6px}
-.totale-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:14px}
-.totale-row.totale-importo span:last-child{font-weight:600;color:var(--accent-primary)}
-.totale-row.totale-finale{border-top:2px solid var(--border-color);margin-top:4px;padding-top:8px}
-.totale-row.totale-finale span{font-size:16px;font-weight:700;color:var(--accent-green)}
-.btn-confirm-order{margin:4px 14px 16px;background:var(--accent-green);color:#fff;border:none;padding:15px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;width:calc(100% - 28px);box-shadow:0 3px 10px rgba(56,142,60,.3)}
-.btn-confirm-order:disabled{background:#BDBDBD;box-shadow:none;cursor:not-allowed}
-.btn-confirm-order.btn-fornitore{background:var(--accent-fornit)}
+```
+index.html          Entry point + stato globale APP
+styles.css          UI completa (CSS variables, responsive)
+sw.js               Service Worker — cache-first, offline support
+manifest.json       PWA manifest
 
-/* ---- MODAL ---- */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:flex-end;justify-content:center}
-.modal-overlay.hidden{display:none}
-.modal-content{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:92dvh;display:flex;flex-direction:column;overflow:hidden}
-.modal-content.modal-large{max-height:96dvh}
-.modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px;border-bottom:1px solid var(--border-color);flex-shrink:0}
-.modal-header h3{font-size:16px;font-weight:700}
-.modal-body{flex:1;overflow-y:auto;padding:14px 16px}
+js/
+├── db.js           IndexedDB PicamDB v5 — tutti i CRUD
+├── utils.js        Formatter, toast, beep, debounce
+├── config.js       Configurazione persistente (localStorage)
+├── main.js         OAuth2, caricamento Drive, navigazione, scanner, numpad
+├── inventario.js   Tri-modale, lente ingrandimento, UX tabellare
+├── ordini-clienti.js   Ordini clienti completi
+├── ordini-fornitori.js Ordini fornitori completi
+├── queue.js        Gestione coda e storico
+├── sync.js         Export file Picam ERP
+├── pdf.js          Generazione PDF (jsPDF)
+└── print.js        Stampa termica ESC/POS / CPCL / ZPL
+```
 
-/* NUMPAD */
-.numpad-container{margin-top:8px}
-.numpad-display{background:var(--bg-input);border-radius:10px;padding:14px;text-align:right;margin-bottom:10px}
-.numpad-value{font-size:36px;font-weight:700;color:var(--text-primary);font-family:var(--font-mono)}
-.numpad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.numpad-btn{background:var(--bg-input);border:1px solid var(--border-color);border-radius:10px;padding:16px;font-size:20px;font-weight:600;cursor:pointer;text-align:center;transition:background .1s}
-.numpad-btn:active{background:#BDBDBD}
-.numpad-btn.clear{background:#FFF3E0;color:var(--accent-amber)}
-.numpad-btn.backspace{background:#FCE4EC;color:var(--accent-red)}
-.numpad-btn.confirm{grid-column:span 3;background:var(--accent-green);color:#fff;font-size:16px;border:none;padding:14px}
+---
 
-/* QUEUE MODAL */
-.queue-tabs{display:flex;gap:0;border-bottom:2px solid var(--border-color);flex-shrink:0;margin:-14px -16px 14px;padding:0 16px}
-.queue-tab{flex:1;background:none;border:none;padding:12px 8px;font-size:14px;font-weight:600;color:var(--text-secondary);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s}
-.queue-tab.active{color:var(--accent-primary);border-bottom-color:var(--accent-primary)}
-.tab-badge{background:#EF5350;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px}
-.queue-tab-content{display:none}
-.queue-tab-content.active{display:block}
-.queue-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.queue-count{font-size:13px;color:var(--text-secondary)}
-.queue-item{background:var(--bg-input);border-radius:10px;padding:12px;margin-bottom:6px;cursor:pointer;border:1px solid var(--border-color);transition:background .1s}
-.queue-item:active{background:#E3F2FD}
-.queue-item-main{display:flex;align-items:center;gap:8px;margin-bottom:3px}
-.qi-registro{font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--accent-primary);flex-shrink:0}
-.qi-code{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--accent-primary);min-width:80px}
-.qi-sogg{flex:1;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qi-desc{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qi-sync{font-size:14px;flex-shrink:0}
-.queue-item-sub{font-size:12px;color:var(--text-secondary)}
-.queue-tap-hint{display:flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:12px;margin-bottom:8px;padding:6px 10px;background:#F5F5F5;border-radius:8px}
-.queue-empty{text-align:center;color:var(--text-secondary);font-size:14px;padding:24px 0}
-.queue-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border-color)}
-.queue-search-bar{margin-bottom:8px}
-.queue-search-bar input{width:100%;padding:9px 12px;border:1px solid var(--border-color);border-radius:10px;font-size:14px}
-.inv-gestione-filters{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
-.inv-gestione-filters select{flex:1;min-width:120px;padding:8px;border:1px solid var(--border-color);border-radius:8px;font-size:13px}
+## 🚀 Installazione
 
-/* STORICO */
-.storico-search{margin-bottom:8px}
-.storico-search input{width:100%;padding:9px 12px;border:1px solid var(--border-color);border-radius:10px;font-size:14px}
-.storico-filters{margin-bottom:10px}
-.storico-item{background:var(--bg-input);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;border:1px solid var(--border-color)}
-.storico-item:active{background:#E3F2FD}
-.si-main{display:flex;align-items:center;gap:8px;margin-bottom:2px}
-.si-registro{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--accent-primary)}
-.si-sogg{flex:1;font-size:13px;font-weight:500}
-.si-sub{font-size:12px;color:var(--text-secondary)}
-.storico-actions{margin-top:14px;padding-top:14px;border-top:1px solid var(--border-color)}
-.filter-field{display:flex;flex-direction:column;gap:3px}
-.filter-field label{font-size:11px;color:var(--text-secondary);text-transform:uppercase}
-.filter-field input{padding:7px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:13px}
+### Requisiti
+- Account Google con Google Drive attivo
+- File Excel delle anagrafiche Picam nella cartella Drive configurata (generati da PicamExporter)
+- Chrome su Android/iOS/Desktop
 
-/* DETAIL MODAL */
-.detail-row{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-color);align-items:baseline}
-.detail-row:last-child{border:none}
-.detail-row label{font-size:12px;color:var(--text-secondary);min-width:80px;flex-shrink:0;font-weight:500}
-.detail-row.editable input{flex:1;padding:6px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:15px;font-weight:600}
-.item-detail-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border-color)}
-.riga-detail{background:#FAFAFA;border-radius:8px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--border-color)}
-.riga-detail-fornitore{border-left:3px solid var(--accent-fornit)}
-.riga-detail-cliente{border-left:3px solid var(--accent-primary)}
-.riga-inputs{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
-.riga-inputs label{font-size:11px;color:var(--text-secondary)}
-.riga-inputs input{padding:5px 8px;border:1px solid var(--border-color);border-radius:6px;font-size:13px;font-weight:600}
-.riga-cod{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent-primary)}
-.riga-desc{font-size:13px;margin-left:8px}
-.riga-tot{font-weight:700;color:var(--accent-green);font-size:13px;margin-left:auto}
-.sync-warning{background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:8px 12px;font-size:13px;color:var(--accent-amber);margin-top:8px}
+### Accesso
+```
+https://orlandodon61-cmyk.github.io/Picam-Mobile
+```
 
-/* SETTINGS MODAL */
-.settings-section{margin-bottom:16px}
-.settings-section h4{font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border-color)}
-.settings-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.settings-field{display:flex;flex-direction:column;gap:4px}
-.settings-field label{font-size:11px;color:var(--text-secondary);font-weight:500;text-transform:uppercase;letter-spacing:.4px}
-.settings-field input,.settings-field select{padding:9px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:14px;background:#fff}
-.settings-field input[readonly]{background:var(--bg-input);color:var(--text-secondary)}
-.settings-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color)}
+### Installazione come app (Android)
+1. Apri l'URL in Chrome
+2. Menu ⋮ → **Installa app** (o "Aggiungi a schermata Home")
+3. L'app si aprirà come applicazione nativa
 
-/* PRINT WIZARD */
-.print-wizard-section{margin-bottom:16px}
-.print-wizard-section h4{font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
-.print-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.print-type-btn{border:2px solid var(--border-color);border-radius:10px;padding:10px 6px;background:#fff;cursor:pointer;text-align:center;transition:all .15s}
-.print-type-btn.active,.print-type-btn:active{border-color:var(--accent-primary);background:#E3F2FD}
-.print-type-icon{font-size:22px;display:block}
-.print-type-label{font-size:12px;font-weight:600;display:block;margin-top:4px}
-.printer-field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
-.printer-field label{font-size:11px;color:var(--text-secondary);font-weight:500;text-transform:uppercase;letter-spacing:.4px}
-.printer-field input,.printer-field select{padding:9px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:14px;background:#fff}
-.print-test-result{margin-top:10px;padding:10px 12px;background:#F5F5F5;border-radius:8px;font-size:13px;color:var(--text-secondary)}
+---
 
-/* SCANNER */
-.scanner-overlay{position:fixed;inset:0;background:#000;z-index:9000;display:flex;flex-direction:column}
-.scanner-overlay.hidden{display:none}
-.scanner-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(255,255,255,.1)}
-.scanner-title{color:#fff;font-size:16px;font-weight:600}
-.scanner-container{flex:1;overflow:hidden;position:relative}
-#scanner-reader{width:100%;height:100%}
-.scanner-footer{padding:14px 16px;background:rgba(255,255,255,.1);display:flex;align-items:center;gap:12px}
-.btn-cancel-scan{background:var(--accent-red);color:#fff;border:none;padding:10px 20px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;flex:1}
-.scanner-hint{color:#FFF176;font-size:13px;font-weight:500}
+## ⚙️ Configurazione
 
-/* QTY MODAL specifici */
-#qty-prezzo-label{font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;font-weight:500}
-#qty-prezzo-input{width:100%;padding:12px;font-size:18px;border:2px solid var(--border-color);border-radius:8px;text-align:right;transition:background .2s}
-#qty-locazione-input{flex:1;padding:10px 12px;font-size:14px;border:2px solid var(--border-color);border-radius:8px}
+### Prima configurazione
+1. Apri l'app → schermata Setup
+2. **Accedi con Google** (Step 1)
+3. Inserisci la **cartella Drive** dove sono i file Excel (es. `archivi/Ordini`)
+4. Inserisci il **codice deposito** (es. `01`) e i **registri ordini**
+5. Tocca **"Carica Dati da Drive"**
 
-/* UTILITIES */
-.hidden{display:none!important}
-.card{background:#fff;border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
-.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.card-title{font-size:13px;font-weight:700;color:var(--text-secondary)}
-.mt-12{margin-top:12px}
-.mt-16{margin-top:16px}
-.mb-12{margin-bottom:12px}
-.results-list{max-height:200px;overflow-y:auto;margin-bottom:4px}
+### Impostazioni (⚙️ dal menu principale)
+| Parametro | Default | Descrizione |
+|-----------|---------|-------------|
+| Cartella Drive | `archivi/Ordini` | Percorso relativo nella root del Drive |
+| Deposito | `01` | Codice deposito magazzino |
+| Registro Clienti | `01` | Registro ordini clienti (max 4 char) |
+| Registro Fornitori | `01` | Registro ordini fornitori |
+| Dati Mittente | — | Ragione sociale, indirizzo, P.IVA per intestazione PDF |
+| Destinazione PDF | `download` | `download` \| `share` \| `drive` |
 
-/* SCROLLBAR */
-::-webkit-scrollbar{width:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:2px}
+### Logo aziendale
+Carica il file `logo.jpg` o `LOGO.jpg` nella cartella Drive configurata. Viene usato automaticamente nell'intestazione dei PDF e nelle stampe termiche ESC/POS.
 
-/* ── Wizard Stampante ─────────────────────────────── */
-.printer-bt-status-ok {
-    background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;
-}
-.printer-bt-status-error {
-    background: #ffebee; color: #c62828; border: 1px solid #ef9a9a;
-}
-.printer-bt-guide {
-    background: var(--bg-secondary, #f5f5f5);
-    border-radius: 8px; padding: 10px 12px;
-    margin-top: 8px; font-size: 12px;
-}
-.printer-field small {
-    display: block; margin-top: 4px;
-    color: var(--text-secondary); font-size: 11px; line-height: 1.4;
-}
+---
 
-/* ═══════════════════════════════════════════════════
-   CRM v2 — Stili completi
-   ═══════════════════════════════════════════════════ */
+## 📁 File Excel di Input
 
-/* Menu card CRM */
-.menu-card.crm { border-left: 4px solid #7B1FA2; }
+Generati da **PicamExporter** (script Python + `excelout.exe`):
 
-/* ── Lista Clienti ─────────────────────────────── */
-.crm-search-bar {
-    display: flex; align-items: center; gap: 6px;
-    padding: 8px 10px;
-    background: var(--bg-secondary, #f5f5f5);
-    border-bottom: 1px solid var(--border-color, #e0e0e0);
-    position: sticky; top: 56px; z-index: 10;
-}
-.crm-search-bar input {
-    flex: 1; padding: 8px 12px; border-radius: 20px;
-    border: 1px solid #ccc; font-size: 14px;
-    background: white; outline: none;
-}
-.crm-sort-sel {
-    padding: 6px 8px; border-radius: 8px;
-    border: 1px solid #ccc; font-size: 12px;
-    background: white; cursor: pointer;
-}
-.crm-progress-wrap {
-    height: 3px; background: transparent; overflow: hidden;
-}
-.crm-progress-bar {
-    height: 3px; background: #7B1FA2;
-    transition: width .3s ease;
-}
-.crm-count-bar {
-    font-size: 11px; color: var(--text-secondary);
-    padding: 4px 12px;
-    background: var(--bg-secondary, #f5f5f5);
-    border-bottom: 1px solid var(--border-color, #eee);
-}
-.crm-lista-container {
-    overflow-y: auto;
-    height: calc(100vh - 130px);
-}
-.crm-list-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border-color, #eee);
-    cursor: pointer; transition: background .12s;
-}
-.crm-list-item:active { background: #f0f4ff; }
-.crm-list-body { flex: 1; min-width: 0; }
-.crm-list-main {
-    display: flex; justify-content: space-between;
-    align-items: baseline; margin-bottom: 2px;
-}
-.crm-list-rag  { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
-.crm-list-cod  { font-size: 11px; color: var(--text-secondary); }
-.crm-list-sub  { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-secondary); }
-.crm-list-arrow { color: #bbb; font-size: 18px; flex-shrink: 0; }
-.crm-empty     { text-align: center; color: var(--text-secondary); padding: 32px 16px; font-size: 14px; }
+| File | Contenuto | Campi chiave |
+|------|-----------|-------------|
+| `articoli.xlsx` | Anagrafica articoli (40.000+) | `art_cod`, `art_des_1`, `art_gru_ven`, `art_loc_mag`, `art_prz_ult_ven`, `art_prz_ult_acq` |
+| `codbar.xlsx` | Codici a barre | `cba_cod_art`, `cba_cod_bar` |
+| `artdep.xlsx` | Giacenze deposito | `ard_cod`, `ard_giac`, `ard_loc` |
+| `clicom.xlsx` | Clienti commerciali | `clc_cod_cli`, `clc_rag_soc_1`, `clc_cod_pag` |
+| `forcom.xlsx` | Fornitori | `foc_cod_for`, `foc_rag_soc_1`, `foc_cod_pag` |
+| `iva.xlsx` | Aliquote IVA | `iva_cod`, `iva_ali` |
+| `pagame.xlsx` | Modalità pagamento | `pag_cod`, `pag_des` |
+| `grupmerc.xlsx` | Gruppi merceologici | `grm_cod_gru`, `grm_des_gru` (solo `grm_tip_gru = 'V'`) |
 
-/* Avatar */
-.crm-avatar {
-    width: 38px; height: 38px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 700; color: white; flex-shrink: 0;
-}
-.crm-avatar-lg {
-    width: 48px; height: 48px; font-size: 20px;
-}
+---
 
-/* Badge */
-.crm-badge {
-    font-size: 11px; padding: 1px 6px; border-radius: 10px;
-    font-weight: 500; white-space: nowrap;
-}
-.badge-ok      { background: #e3f2fd; color: #1565c0; }
-.badge-debito  { background: #ffebee; color: #c62828; }
-.badge-scaduto { background: #fff3e0; color: #e65100; }
+## 📤 File Export verso Picam ERP
 
-/* ── Header Dettaglio ──────────────────────────── */
-.crm-det-header {
-    background: #F3E5F5;
-    padding: 10px 12px 8px;
-    border-bottom: 1px solid #CE93D8;
-}
-.crm-det-top {
-    display: flex; gap: 10px; align-items: flex-start;
-    margin-bottom: 8px;
-}
-.crm-det-rag  { font-size: 15px; font-weight: 600; }
-.crm-det-cod  { font-size: 11px; color: #7B1FA2; font-weight: 600; }
-.crm-det-ind  { font-size: 12px; color: #555; }
-.crm-det-meta { font-size: 11px; color: #777; margin-top: 2px; }
+### Ordini Clienti
+| File | Campi | Formato |
+|------|-------|---------|
+| `ordini-anagrafiche` | 20 campi `clc_*` | Pipe-delimited `\|` |
+| `ordini-testate` | 29 campi `oct_*` (inc. `oct_tot_net_mer`, `oct_iva`, `oct_tot_ord`) | Pipe-delimited `\|` |
+| `ordini-dettagli` | 36 campi `ocd_*` | Pipe-delimited `\|` |
 
-/* KPI */
-.crm-kpi-row  { display: flex; gap: 6px; }
-.kpi-card     { flex: 1; background: white; border-radius: 8px; padding: 5px 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-.kpi-label    { font-size: 10px; color: #888; margin-bottom: 2px; }
-.kpi-value    { font-size: 13px; font-weight: 600; color: #1565c0; }
-.kpi-value.kpi-danger { color: #c62828; }
-.kpi-value.kpi-ok     { color: #2e7d32; }
+### Ordini Fornitori
+Stessa struttura con file `ordfornitori-*`.
 
-/* ── Tab Bar scorrevole ────────────────────────── */
-.crm-tab-bar {
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    background: white;
-    border-bottom: 2px solid #e0e0e0;
-    position: sticky; top: 56px; z-index: 10;
-}
-.crm-tab-bar::-webkit-scrollbar { display: none; }
-.crm-tab-btn {
-    flex: 0 0 auto;
-    scroll-snap-align: start;
-    padding: 10px 14px;
-    border: none; background: transparent;
-    font-size: 12px; color: #666; cursor: pointer;
-    border-bottom: 3px solid transparent; margin-bottom: -2px;
-    white-space: nowrap; transition: all .15s;
-}
-.crm-tab-btn.tab-active {
-    color: #7B1FA2; border-bottom-color: #7B1FA2; font-weight: 600;
-}
+### Inventario
+`INVENMAG.xlsx` con 9 campi `ima_*` (deposito, codice, quantità, data).
 
-/* ── Contenuto Tab ─────────────────────────────── */
-.crm-tab-content {
-    overflow-y: auto;
-    height: calc(100vh - 238px);
-}
-.crm-tab-panel { padding: 8px; }
+> Date: `DDMMYYYY` — Decimali: virgola, 6 cifre (es. `40,000000`)
 
-/* Summary row */
-.crm-summary {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 4px; margin-bottom: 6px;
-    font-size: 13px; font-weight: 500;
-}
-.crm-scad-warn { color: #c62828; font-weight: 600; }
+---
 
-/* Contatti */
-.crm-contact-card {
-    background: white; border-radius: 8px;
-    padding: 10px 12px; margin-bottom: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.08);
-}
-.crm-contact-main { border-left: 4px solid #7B1FA2; }
-.crm-contact-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
-.crm-contact-qual { font-size: 11px; color: #888; font-weight: 400; margin-left: 6px; }
-.crm-contact-info { font-size: 11px; color: #777; margin-top: 4px; }
-.crm-contact-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.btn-contact {
-    padding: 5px 10px; border-radius: 16px; border: none;
-    font-size: 12px; cursor: pointer;
-    background: #e3f2fd; color: #1565c0;
-}
-.btn-contact.btn-wa    { background: #e8f5e9; color: #2e7d32; }
-.btn-contact.btn-mail  { background: #fce4ec; color: #880e4f; }
-.btn-contact.btn-maps  { background: #fff3e0; color: #e65100; }
+## 🔧 Aggiornamento versione
 
-/* Tabelle CRM */
-.crm-table {
-    width: 100%; border-collapse: collapse;
-    font-size: 12px; margin-top: 4px;
-}
-.crm-table thead th {
-    background: #F3E5F5; color: #7B1FA2;
-    padding: 6px 6px; text-align: left;
-    font-weight: 600; border-bottom: 2px solid #CE93D8;
-    position: sticky; top: 0; z-index: 1;
-    white-space: nowrap;
-}
-.crm-table tbody tr  { border-bottom: 1px solid #eee; }
-.crm-table tbody td  { padding: 6px 6px; vertical-align: top; }
-.crm-table tbody tr:nth-child(even) { background: #fafafa; }
-.crm-table tbody tr.row-danger { background: #fff5f5; }
-.crm-table tbody tr.row-warn   { background: #fffde7; }
-.td-num   { text-align: right; font-variant-numeric: tabular-nums; }
+1. Modifica i file necessari
+2. Incrementa il nome cache in `sw.js`: `const CACHE_NAME = 'picam-v41'`
+3. Carica su GitHub (drag & drop dell'intera cartella `js/`)
+4. Il Service Worker vecchio si aggiorna automaticamente al primo accesso con rete
 
-/* Stato badge */
-.stato-badge {
-    display: inline-block; padding: 1px 6px; border-radius: 8px;
-    font-size: 10px; font-weight: 600;
-}
-.stato-SCADUTO      { background: #ffebee; color: #c62828; }
-.stato-In_scadenza  { background: #fff3e0; color: #e65100; }
-.stato-Aperto       { background: #e8f5e9; color: #2e7d32; }
+**Se il vecchio SW persiste su Chrome:**
+```javascript
+// Incolla nella Console DevTools (F12)
+navigator.serviceWorker.getRegistrations().then(r => r.forEach(x => x.unregister()))
+```
+Poi `Ctrl+Shift+R` per ricaricare.
 
-/* Saldo card */
-.crm-saldo-card {
-    background: white; border-radius: 10px;
-    padding: 14px 16px; margin: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.1);
-}
-.crm-saldo-row {
-    display: flex; justify-content: space-between;
-    padding: 6px 0; font-size: 14px;
-    border-bottom: 1px solid #f0f0f0;
-}
-.crm-saldo-divider {
-    height: 2px; background: #7B1FA2; margin: 8px 0;
-}
-.crm-saldo-total {
-    font-weight: 700; font-size: 15px;
-    border-bottom: none;
-}
+---
 
-/* Wizard Stampante — già presenti, mantenuti */
-.printer-bt-status-ok    { background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7; }
-.printer-bt-status-error { background:#ffebee;color:#c62828;border:1px solid #ef9a9a; }
-.printer-bt-guide        { background:var(--bg-secondary,#f5f5f5);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:12px; }
-.printer-field small     { display:block;margin-top:4px;color:var(--text-secondary);font-size:11px;line-height:1.4; }
+## 📚 Documentazione
+
+| Documento | Descrizione |
+|-----------|-------------|
+| [`PICAM_Documentazione_Tecnica_v4.0.docx`](./PICAM_Documentazione_Tecnica_v4.0.docx) | Architettura, schema DB, mapping campi completo, bug fix storici |
+| [`PICAM_Manuale_Utente_v4.0.docx`](./PICAM_Manuale_Utente_v4.0.docx) | Guida operativa passo-passo per gli utenti |
+
+---
+
+## 🛠️ Dipendenze esterne (CDN)
+
+| Libreria | Versione | Uso |
+|----------|---------|-----|
+| [SheetJS](https://sheetjs.com) | 0.18.5 | Lettura/scrittura file .xlsx |
+| [html5-qrcode](https://github.com/mebjas/html5-qrcode) | 2.3.8 | Scanner barcode/QR da fotocamera |
+| [jsPDF](https://github.com/parallax/jsPDF) | 2.5.1 | Generazione PDF |
+| [Google Identity Services](https://developers.google.com/identity) | latest | OAuth 2.0 per Google Drive |
+
+---
+
+## 📝 Changelog
+
+### v4.0 (Aprile 2026)
+- **Architettura modulare**: da 1 file `app.js` (4289 righe) a 11 moduli JS indipendenti
+- **Fix critico**: `saveArticoli()` ora salva tutti gli articoli (fix troncamento a 500 con `setTimeout`)
+- **Fix inventario**: campo gruppo da `art_gru_ven`, locazione da `art_loc_mag`
+- **Fix UI tabellare**: doppio tap apre modal qty; `inputmode="none"` blocca tastiera Android
+- **Ordini clienti**: parificati ai fornitori (prezzo editabile, totali IVA, PDF, condivisione)
+- **PDF unificato**: stesso layout professionale per clienti e fornitori; logo proporzionato
+- **Configurazione estesa**: dati mittente PDF, registri ordini, destinazione salvataggio
+- **Stampa mobile**: ESC/POS con logo bitmap 1-bit; CPCL; ZPL; wizard guidato
+- **Registri ordini**: configurabili separatamente per clienti e fornitori
+
+### v3.6
+- Fix sincronizzazione inventario, gruppi merceologici, prezzo ordini fornitori
+
+---
+
+## 👤 Autore
+
+**Orlando Don** — orlando.don61@gmail.com  
+Sviluppato con assistenza AI (Claude — Anthropic)
+
+---
+
+*PICAM Mobile è un progetto proprietario sviluppato per uso interno. Il codice è rilasciato sul repository GitHub per facilità di deploy tramite GitHub Pages.*
