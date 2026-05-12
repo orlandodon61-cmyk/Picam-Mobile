@@ -51,6 +51,59 @@ APP.syncInventario = async function() {
     APP.updateBadges();
 };
 
+
+// ---------- SYNC RILEVAZIONE (movint.txt) ----------
+// Produce un file di testo con formato codice_articolo;quantità
+// da importare come rilevazione esterna in Picam
+
+APP.syncRilevazione = async function() {
+    const queue = await DB.getQueue('queueInventario');
+    if (queue.length === 0) {
+        APP.showToast('Nessun elemento da sincronizzare', 'error');
+        return;
+    }
+    try {
+        APP.showToast('Creazione movint.txt...', 'info');
+
+        // Costruisce il testo: una riga per articolo, formato codice;quantità
+        // Se lo stesso articolo compare più volte, somma le quantità
+        const aggregato = {};
+        for (const item of queue) {
+            const cod = (item.codice || '').trim();
+            if (!cod) continue;
+            aggregato[cod] = (aggregato[cod] || 0) + (Number(item.qty) || 0);
+        }
+
+        const righe = Object.entries(aggregato)
+            .map(([cod, qty]) => `${cod};${qty}`)
+            .join('
+');
+
+        // Carica su Drive come file di testo
+        const folderId = await APP.findFolder(APP.config.folder);
+        if (!folderId) throw new Error('Cartella Drive non trovata');
+
+        const blob     = new Blob([righe], { type: 'text/plain' });
+        const arrBuf   = await blob.arrayBuffer();
+
+        await APP.uploadFile(folderId, 'movint.txt', arrBuf, 'text/plain');
+
+        // Svuota la coda e aggiorna i badge
+        await DB.clearQueue('queueInventario');
+        APP.updateHeaderQueueCount('inv');
+        APP.updateBadges();
+
+        APP.showToast(
+            `movint.txt creato: ${Object.keys(aggregato).length} articoli`,
+            'success'
+        );
+        APP.closeQueueModal();
+    } catch(e) {
+        console.error('Errore sync rilevazione:', e);
+        APP.showToast('Errore: ' + e.message, 'error');
+    }
+};
+
 // ---------- SYNC ORDINI CLIENTI ----------
 // Genera 3 file per Picam ERP:
 // ordini-anagrafiche: dati cliente

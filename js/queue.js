@@ -18,7 +18,7 @@ APP.openQueueModal = async function(context) {
     const modal = document.getElementById('modal-queue');
     const titleEl = document.getElementById('queue-modal-title');
 
-    const titles = { inventario: '📋 Inventario', ordiniClienti: '🛒 Ordini Clienti', ordiniFornitori: '🏭 Ordini Fornitori' };
+    const titles = { inventario: '📋 Inventario / Rilevazione', ordiniClienti: '🛒 Ordini Clienti', ordiniFornitori: '🏭 Ordini Fornitori' };
     titleEl.textContent = titles[context] || 'Gestione';
 
     // Filtri: mostra/nascondi in base al contesto
@@ -122,8 +122,11 @@ APP.renderQueueList = async function(data = null) {
 
     // Azioni
     actionsEl.innerHTML = `
-        <button class="btn-primary" onclick="APP.syncQueue('${context}')">☁️ Sincronizza su Drive</button>
-        ${context !== 'inventario' ? `<button class="btn-secondary" onclick="APP.generateReport('${context}')">📄 Report PDF</button>` : ''}
+        ${context === 'inventario'
+          ? `<button class="btn-primary"   onclick="APP.syncQueue('inventario')">☁️ Sincronizza Inventario</button>
+             <button class="btn-secondary" onclick="APP.syncRilevazione()">📄 Sincronizza Rilevazione</button>`
+          : `<button class="btn-primary"   onclick="APP.syncQueue('${context}')">☁️ Sincronizza su Drive</button>
+             <button class="btn-secondary" onclick="APP.generateReport('${context}')">📄 Report PDF</button>`}
         <button class="btn-danger" onclick="APP.clearQueue('${context}')">🗑️ Svuota Coda</button>`;
 };
 
