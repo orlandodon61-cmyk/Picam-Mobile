@@ -120,25 +120,17 @@ APP.renderQueueList = async function(data = null) {
 
     list.innerHTML = html;
 
-    // Azioni — innerHTML senza onclick inline, listener assegnati via JS
-    // (evita qualsiasi problema con virgolette negli attributi HTML)
+    // Azioni — template literal identico all'originale che funzionava
     if (context === 'inventario') {
         actionsEl.innerHTML =
-            '<button id="btn-sync-inv"  class="btn-primary">&#9729; Sincronizza Inventario</button> ' +
-            '<button id="btn-rile-inv"  class="btn-secondary">&#128196; Sincronizza Rilevazione</button> ' +
-            '<button id="btn-clear-inv" class="btn-danger">&#128465; Svuota Coda</button>';
-        document.getElementById('btn-sync-inv').onclick  = function() { APP.syncQueue('inventario'); };
-        document.getElementById('btn-rile-inv').onclick  = function() { APP.syncRilevazione(); };
-        document.getElementById('btn-clear-inv').onclick = function() { APP.clearQueue('inventario'); };
+            `<button class="btn-primary"   onclick="APP.syncQueue('inventario')">☁️ Sincronizza Inventario</button>
+             <button class="btn-secondary" onclick="APP.syncRilevazione()">📄 Sincronizza Rilevazione</button>
+             <button class="btn-danger"    onclick="APP.clearQueue('inventario')">🗑️ Svuota Coda</button>`;
     } else {
         actionsEl.innerHTML =
-            '<button id="btn-sync-q"   class="btn-primary">&#9729; Sincronizza su Drive</button> ' +
-            '<button id="btn-report-q" class="btn-secondary">&#128196; Report PDF</button> ' +
-            '<button id="btn-clear-q"  class="btn-danger">&#128465; Svuota Coda</button>';
-        var _ctx = context;
-        document.getElementById('btn-sync-q').onclick   = function() { APP.syncQueue(_ctx); };
-        document.getElementById('btn-report-q').onclick = function() { APP.generateReport(_ctx); };
-        document.getElementById('btn-clear-q').onclick  = function() { APP.clearQueue(_ctx); };
+            `<button class="btn-primary"   onclick="APP.syncQueue('${context}')">☁️ Sincronizza su Drive</button>
+             <button class="btn-secondary" onclick="APP.generateReport('${context}')">📄 Report PDF</button>
+             <button class="btn-danger"    onclick="APP.clearQueue('${context}')">🗑️ Svuota Coda</button>`;
     }
 };
 
