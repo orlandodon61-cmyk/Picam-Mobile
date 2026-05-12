@@ -120,18 +120,25 @@ APP.renderQueueList = async function(data = null) {
 
     list.innerHTML = html;
 
-    // Azioni — concatenazione senza backslash per onclick valido
-    var q = "'";
+    // Azioni — innerHTML senza onclick inline, listener assegnati via JS
+    // (evita qualsiasi problema con virgolette negli attributi HTML)
     if (context === 'inventario') {
         actionsEl.innerHTML =
-            "<button class='btn-primary' onclick='APP.syncQueue(" + q + "inventario" + q + ")'>&#9729;&#65039; Sincronizza Inventario</button> " +
-            "<button class='btn-secondary' onclick='APP.syncRilevazione()'>&#128196; Sincronizza Rilevazione</button> " +
-            "<button class='btn-danger' onclick='APP.clearQueue(" + q + "inventario" + q + ")'>&#128465;&#65039; Svuota Coda</button>";
+            '<button id="btn-sync-inv"  class="btn-primary">&#9729; Sincronizza Inventario</button> ' +
+            '<button id="btn-rile-inv"  class="btn-secondary">&#128196; Sincronizza Rilevazione</button> ' +
+            '<button id="btn-clear-inv" class="btn-danger">&#128465; Svuota Coda</button>';
+        document.getElementById('btn-sync-inv').onclick  = function() { APP.syncQueue('inventario'); };
+        document.getElementById('btn-rile-inv').onclick  = function() { APP.syncRilevazione(); };
+        document.getElementById('btn-clear-inv').onclick = function() { APP.clearQueue('inventario'); };
     } else {
         actionsEl.innerHTML =
-            "<button class='btn-primary' onclick='APP.syncQueue(" + q + context + q + ")'>&#9729;&#65039; Sincronizza su Drive</button> " +
-            "<button class='btn-secondary' onclick='APP.generateReport(" + q + context + q + ")'>&#128196; Report PDF</button> " +
-            "<button class='btn-danger' onclick='APP.clearQueue(" + q + context + q + ")'>&#128465;&#65039; Svuota Coda</button>";
+            '<button id="btn-sync-q"   class="btn-primary">&#9729; Sincronizza su Drive</button> ' +
+            '<button id="btn-report-q" class="btn-secondary">&#128196; Report PDF</button> ' +
+            '<button id="btn-clear-q"  class="btn-danger">&#128465; Svuota Coda</button>';
+        var _ctx = context;
+        document.getElementById('btn-sync-q').onclick   = function() { APP.syncQueue(_ctx); };
+        document.getElementById('btn-report-q').onclick = function() { APP.generateReport(_ctx); };
+        document.getElementById('btn-clear-q').onclick  = function() { APP.clearQueue(_ctx); };
     }
 };
 
