@@ -564,6 +564,12 @@ APP.renderSearchResults = function(results, container, context) {
                 <div class="result-desc">${r.ragSoc1}</div>
                 <div class="result-sub">${r.localita || ''} ${r.provincia ? '('+r.provincia+')' : ''}</div>
             </div>`;
+        } else if (context === 'clienteBolla') {
+            html += `<div class="result-item" onclick="APP.onResultClick('${context}', ${i})">
+                <div class="result-code">${r.codice}</div>
+                <div class="result-desc">${r.ragSoc1}</div>
+                <div class="result-sub">${r.localita || ''} ${r.provincia ? '('+r.provincia+')' : ''}</div>
+            </div>`;
         } else if (context === 'fornitore') {
             html += `<div class="result-item" onclick="APP.onResultClick('${context}', ${i})">
                 <div class="result-code">${r.codice}</div>
@@ -590,6 +596,8 @@ APP.onResultClick = function(context, index) {
         APP.handleSelectCliente(item);
     } else if (context === 'fornitore') {
         APP.handleSelectFornitore(item);
+    } else if (context === 'clienteBolla') {
+        APP.handleSelectClienteBolla(item);
     } else {
         APP.handleSelectArticolo(item, context);
     }
@@ -1074,34 +1082,25 @@ APP.searchClientiBolla = async function(query) {
     if (!query || query.length < 1) { el.innerHTML = ''; return; }
     try {
         const risultati = await DB.searchClienti(query);
-        el.innerHTML = risultati.slice(0,20).map(c =>
-            `<div class="result-item" onclick="APP.selectClienteBolla('${c.codice}')">
-                <div class="result-title">${c.ragSoc1}</div>
-                <div class="result-sub">${c.localita||''} — Cod: ${c.codice}</div>
-             </div>`
-        ).join('') || '<p style="padding:8px;color:#999">Nessun risultato</p>';
+        APP.renderSearchResults(risultati, el, 'clienteBolla');
     } catch(e) { el.innerHTML = ''; }
 };
 
-APP.selectClienteBolla = async function(codice) {
-    try {
-        const c = await DB.getCliente(codice);
-        if (!c) return;
-        APP.currentBollaClienti.cliente = c;
-        document.getElementById('results-cliente-bolla').innerHTML = '';
-        document.getElementById('search-cliente-bolla').value = '';
-        // Pre-seleziona pagamento dal cliente
-        if (c.codPag) {
-            const sel = document.getElementById('bol-cli-pagamento');
-            if (sel) {
-                for (let opt of sel.options) {
-                    if (opt.value === c.codPag) { sel.value = c.codPag; break; }
-                }
+APP.handleSelectClienteBolla = function(cliente) {
+    APP.currentBollaClienti.cliente = cliente;
+    document.getElementById('results-cliente-bolla').innerHTML = '';
+    document.getElementById('search-cliente-bolla').value = '';
+    // Pre-seleziona pagamento dal cliente
+    if (cliente.codPag) {
+        const sel = document.getElementById('bol-cli-pagamento');
+        if (sel) {
+            for (let opt of sel.options) {
+                if (opt.value === cliente.codPag) { sel.value = cliente.codPag; break; }
             }
         }
-        APP.renderSelectedClienteBolla();
-        APP.updateBtnConfermaBolCli();
-    } catch(e) { APP.showToast('Errore selezione cliente','error'); }
+    }
+    APP.renderSelectedClienteBolla();
+    APP.updateBtnConfermaBolCli();
 };
 
 APP.searchArticoliBolCli = async function(query) {
