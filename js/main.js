@@ -768,8 +768,22 @@ APP.openQtyModal = async function() {
     }
 
     document.getElementById('modal-qty').classList.remove('hidden');
-    // Focus sul display per input immediato
-    setTimeout(() => document.getElementById('numpad-value')?.focus(), 100);
+    // Focus: se prezzo vuoto/zero in bolle → focus sul campo prezzo
+    // altrimenti focus sul numpad per la quantità
+    const _przInp = document.getElementById('qty-prezzo-input');
+    const _przCon = document.getElementById('qty-prezzo-container');
+    const _prezzoVuoto = !_przInp || !_przInp.value || parseFloat(_przInp.value) === 0;
+    const _przVisible  = _przCon && !_przCon.classList.contains('hidden');
+    if (_przVisible && _prezzoVuoto) {
+        // Prezzo obbligatorio: mostra hint e auto-focus sul prezzo
+        if (_przInp) {
+            _przInp.placeholder = '← Inserisci prezzo';
+            _przInp.style.border = '2px solid #f57c00';
+            setTimeout(() => { _przInp.focus(); _przInp.select(); }, 150);
+        }
+    } else {
+        setTimeout(() => document.getElementById('numpad-value')?.focus(), 100);
+    }
 };
 
 APP.clearLocazioneInput = function() {
@@ -815,13 +829,10 @@ APP.numpadConfirm = function() {
     let prezzoInserito = null;
     const przInput    = document.getElementById('qty-prezzo-input');
     const przConteiner = document.getElementById('qty-prezzo-container');
+    // Resetta stile campo prezzo
+    if (przInput) { przInput.style.border = ''; przInput.placeholder = ''; }
     // LOG DIAGNOSTICO — verrà rimosso dopo il fix
-    console.log('numpadConfirm:', {
-        context:    APP.currentContext,
-        przValue:   przInput ? przInput.value : 'INPUT NON TROVATO',
-        przHidden:  przConteiner ? przConteiner.classList.contains('hidden') : 'CONTAINER NON TROVATO',
-        qty
-    });
+
     if (APP.currentContext === 'ordiniFornitori' || APP.currentContext === 'ordiniClienti' || APP.currentContext === 'bolleClienti') {
         // Gestisce sia punto che virgola come separatore decimale
         const rawVal = przInput ? przInput.value.replace(',', '.') : '';
