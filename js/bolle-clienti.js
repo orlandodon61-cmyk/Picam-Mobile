@@ -148,6 +148,7 @@ APP.updateBtnConfermaBolCli = function() {
 APP.apriOpzioniBollaDDT = function() {
     const b=APP.currentBollaClienti;
     const v=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val;};
+    v('bol-opt-agente',  b.codAgente || APP.config.codAgente || '');
     v('bol-opt-seg-fat',b.segFat); v('bol-opt-tip-bol',b.tipBol);
     v('bol-opt-cau-mag',b.cauMag); v('bol-opt-cod-dep',b.codDep);
     v('bol-opt-asp-est',b.aspEst); v('bol-opt-cau-tra',b.cauTra);
@@ -159,6 +160,9 @@ APP.apriOpzioniBollaDDT = function() {
 APP.salvaOpzioniBollaDDT = function() {
     const g=id=>(document.getElementById(id)?.value||'').trim();
     const b=APP.currentBollaClienti;
+    b.codAgente=g('bol-opt-agente');
+    // Aggiorna anche il campo agente visibile nel form principale
+    const aEl=document.getElementById('bol-cli-agente'); if(aEl) aEl.value=b.codAgente;
     b.segFat=g('bol-opt-seg-fat')||'S'; b.tipBol=g('bol-opt-tip-bol')||'S';
     b.cauMag=g('bol-opt-cau-mag')||'ven'; b.codDep=g('bol-opt-cod-dep')||'01';
     b.aspEst=g('bol-opt-asp-est'); b.cauTra=g('bol-opt-cau-tra');

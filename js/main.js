@@ -616,7 +616,7 @@ APP.handleSelectArticolo = function(articolo, context) {
     APP.qtyContext = context;
     APP.currentContext = appContext;
     // Chiudi risultati ricerca
-    const map = { inv:'results-inv', artOrdCli:'results-art-ord-cli', artOrdFor:'results-art-ord-for' };
+    const map = { inv:'results-inv', artOrdCli:'results-art-ord-cli', artBolCli:'results-art-bol-cli', artOrdFor:'results-art-ord-for' };
     const resEl = document.getElementById(map[context]);
     if (resEl) resEl.innerHTML = '';
     // Salva posizione scroll SOLO se siamo in modalità tabellare inventario
@@ -756,7 +756,7 @@ APP.openQtyModal = async function() {
         przInput.style.backgroundColor = '#fffde7';
         const def = articolo.prezzoAcquisto || 0;
         przInput.value = def > 0 ? def.toFixed(2) : '';
-    } else if (APP.currentContext === 'ordiniClienti') {
+    } else if (APP.currentContext === 'ordiniClienti' || APP.currentContext === 'bolleClienti') {
         przCont.classList.remove('hidden');
         if (przLabel) przLabel.textContent = 'Prezzo vendita (opzionale):';
         przInput.style.backgroundColor = '#e8f5e9';
