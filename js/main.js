@@ -813,7 +813,7 @@ APP.numpadConfirm = function() {
 
     // Prezzo per ordini clienti e fornitori
     let prezzoInserito = null;
-    if (APP.currentContext === 'ordiniFornitori' || APP.currentContext === 'ordiniClienti') {
+    if (APP.currentContext === 'ordiniFornitori' || APP.currentContext === 'ordiniClienti' || APP.currentContext === 'bolleClienti') {
         const przInput = document.getElementById('qty-prezzo-input');
         if (przInput && przInput.value) prezzoInserito = parseFloat(przInput.value) || null;
     }
