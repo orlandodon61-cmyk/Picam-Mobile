@@ -811,11 +811,21 @@ APP.numpadConfirm = function() {
     const qty = parseInt(document.getElementById('numpad-value').textContent) || 0;
     if (qty <= 0) { APP.showToast('Quantità non valida', 'error'); return; }
 
-    // Prezzo per ordini clienti e fornitori
+    // Prezzo per ordini clienti, fornitori e bolle
     let prezzoInserito = null;
+    const przInput    = document.getElementById('qty-prezzo-input');
+    const przConteiner = document.getElementById('qty-prezzo-container');
+    // LOG DIAGNOSTICO — verrà rimosso dopo il fix
+    console.log('numpadConfirm:', {
+        context:    APP.currentContext,
+        przValue:   przInput ? przInput.value : 'INPUT NON TROVATO',
+        przHidden:  przConteiner ? przConteiner.classList.contains('hidden') : 'CONTAINER NON TROVATO',
+        qty
+    });
     if (APP.currentContext === 'ordiniFornitori' || APP.currentContext === 'ordiniClienti' || APP.currentContext === 'bolleClienti') {
-        const przInput = document.getElementById('qty-prezzo-input');
-        if (przInput && przInput.value) prezzoInserito = parseFloat(przInput.value) || null;
+        // Gestisce sia punto che virgola come separatore decimale
+        const rawVal = przInput ? przInput.value.replace(',', '.') : '';
+        if (rawVal) prezzoInserito = parseFloat(rawVal) || null;
     }
 
     // Locazione per inventario
