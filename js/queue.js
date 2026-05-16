@@ -197,6 +197,8 @@ APP.openItemDetailModal = function() {
         APP.openItemDetailClienti();
     } else if (context === 'ordiniFornitori') {
         APP.openItemDetailFornitori();
+    } else if (context === 'bolleClienti') {
+        APP.openItemDetailBolleClienti();
     }
 };
 

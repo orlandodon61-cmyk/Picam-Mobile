@@ -568,3 +568,6 @@ input:checked+.toggle-slider:before{transform:translateX(20px)}
 .printer-bt-status-error { background:#ffebee;color:#c62828;border:1px solid #ef9a9a; }
 .printer-bt-guide        { background:var(--bg-secondary,#f5f5f5);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:12px; }
 .printer-field small     { display:block;margin-top:4px;color:var(--text-secondary);font-size:11px;line-height:1.4; }
+
+/* ── Bolle Clienti ──────────────────────────────── */
+.menu-card.bolle { border-left: 4px solid #E65100; }

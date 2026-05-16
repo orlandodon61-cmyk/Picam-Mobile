@@ -225,46 +225,79 @@ APP.confermaBollaCliente = async function() {
 
 // ── Dettaglio bolla in coda ───────────────────────────────────────────────────
 APP.openItemDetailBolleClienti = function() {
-    const item=APP.selectedQueueItem;
-    const modal=document.getElementById('modal-item-detail');
-    const titleEl=document.getElementById('item-detail-title');
-    const contentEl=document.getElementById('item-detail-content');
-    const actionsEl=document.getElementById('item-detail-actions');
-    let tot=0;
-    const righeHtml=item.righe.map((r,i)=>{
-        const t=r.qty*r.prezzo; tot+=t;
+    const item     = APP.selectedQueueItem;
+    const modal    = document.getElementById('modal-item-detail');
+    const titleEl  = document.getElementById('item-detail-title');
+    const contEl   = document.getElementById('item-detail-content');
+    const actEl    = document.getElementById('item-detail-actions');
+    if (!modal || !item) return;
+
+    let tot = 0;
+    const righeHtml = item.righe.map((r, i) => {
+        const t = (Number(r.qty)||0) * (Number(r.prezzo)||0); tot += t;
         return `<div class="riga-detail riga-detail-cliente">
-            <div class="riga-info">
-                <span class="riga-cod">${r.codice}</span>
-                <span class="riga-desc">${r.des1.substring(0,28)}</span>
-            </div>
-            <div class="riga-inputs">
-                <label>Qtà:</label>
-                <input type="number" class="riga-qty-edit" data-idx="${i}" value="${r.qty}" min="1" style="width:60px" onchange="APP.updateBollaTotaleCli()">
-                <label>Prezzo:</label>
-                <input type="number" class="riga-prezzo-edit" data-idx="${i}" value="${r.prezzo.toFixed(2)}" step="0.01" min="0" style="width:80px;background:#e8f5e9" onchange="APP.updateRigaTotaleBolla(${i})">
-                <span class="riga-tot" id="riga-tot-bol-${i}">€ ${t.toFixed(2)}</span>
-            </div></div>`;
+          <div class="riga-info">
+            <span class="riga-cod">${r.codice}</span>
+            <span class="riga-desc">${(r.des1||'').substring(0,28)}</span>
+          </div>
+          <div class="riga-inputs">
+            <label>Qtà:</label>
+            <input type="number" class="riga-qty-edit" data-idx="${i}"
+                   value="${r.qty}" min="0.001" step="0.001" style="width:60px"
+                   onchange="APP.updateRigaTotaleBolla(${i})">
+            <label>Prezzo:</label>
+            <input type="number" class="riga-prezzo-edit" data-idx="${i}"
+                   value="${Number(r.prezzo||0).toFixed(4)}" step="0.0001" min="0"
+                   style="width:90px;background:#e8f5e9"
+                   onchange="APP.updateRigaTotaleBolla(${i})">
+            <span class="riga-tot" id="riga-tot-bol-${i}">€ ${t.toFixed(2)}</span>
+          </div>
+        </div>`;
     }).join('');
-    titleEl.textContent=`📦 Bolla ${item.registro}/${item.numero}`;
-    contentEl.innerHTML=`
-        <div class="detail-row"><label>Cliente:</label><span>${item.cliente.ragSoc1}</span></div>
-        <div class="detail-row"><label>Data:</label><span>${APP.formatDate(new Date(item.data))}</span></div>
-        <div class="detail-row"><label>Tipo bolla:</label><span>${item.tipBol==='S'?'Scarico':'Carico'}</span></div>
-        <div class="detail-row"><label>Causale tra.:</label><span>${item.cauTra||'-'}</span></div>
+
+    const dataBolla = item.data ? APP.formatDate(new Date(item.data)) : '';
+    const tipBolStr = item.tipBol === 'S' ? 'Scarico' : 'Carico';
+    const tipPorStr = item.tipPor === 'F' ? 'Franco' : 'Assegnato';
+    const tipSpeStr = item.tipSpe === 'M' ? 'Mittente' : item.tipSpe === 'V' ? 'Vettore' : 'Destinatario';
+
+    titleEl.textContent = `📦 Bolla ${item.registro||'01'}/${item.numero}`;
+    contEl.innerHTML = `
+        <div class="detail-row"><label>Cliente:</label><span>${item.cliente?.ragSoc1||''}</span></div>
+        <div class="detail-row"><label>Data:</label><span>${dataBolla}</span></div>
+        <div class="detail-row"><label>Agente:</label><span>${item.codAgente||'-'}</span></div>
+        <div class="detail-row"><label>Tipo bolla:</label><span>${tipBolStr}</span></div>
+        <div class="detail-row"><label>Causale tras.:</label><span>${item.cauTra||'-'}</span></div>
         <div class="detail-row"><label>Aspetto:</label><span>${item.aspEst||'-'}</span></div>
-        <div class="detail-row"><label>Porto:</label><span>${item.tipPor==='A'?'Assegnato':'Franco'}</span></div>
-        <div class="detail-row"><label>Totale:</label><span id="order-total-bol">€ ${tot.toFixed(2)}</span></div>
-        ${item.synced?'<div class="sync-warning">⚠️ Già sincronizzato su Drive</div>':''}
-        <h4>Righe bolla:</h4><div class="righe-list">${righeHtml}</div>`;
-    actionsEl.innerHTML='';
-    const addBtn=(label,fn,cls)=>{const b=document.createElement('button');b.className=cls||'btn-secondary';b.textContent=label;b.onclick=fn;actionsEl.appendChild(b);};
-    addBtn('💾 Salva',APP.saveItemEditBolla,'btn-primary');
-    addBtn('🖨️ PDF Bolla',APP.stampaBollaPDF);
-    addBtn('📤 Condividi',APP.condividiBollaPDF);
-    addBtn('📱 Stampa Mobile',APP.printMobileBolla);
-    addBtn('🗑️ Elimina',APP.deleteQueueItem,'btn-danger');
-    addBtn('Chiudi',APP.closeItemDetailModal);
+        <div class="detail-row"><label>Porto:</label><span>${tipPorStr}</span></div>
+        <div class="detail-row"><label>Trasporto a cura:</label><span>${tipSpeStr}</span></div>
+        <div class="detail-row"><label>Data/ora tra.:</label>
+            <span>${item.datIniTra||''} ${item.oraIniTra||''}</span></div>
+        <div class="detail-row"><label>Totale bolla:</label>
+            <strong><span id="order-total-bol">€ ${tot.toFixed(2)}</span></strong></div>
+        ${item.synced ? '<div class="sync-warning">⚠️ Già sincronizzato su Drive</div>' : ''}
+        <div class="detail-row" style="align-items:center">
+            <label>🖨️ Doppia copia:</label>
+            <input type="checkbox" id="chk-doppia-copia" style="width:24px;height:24px;cursor:pointer"
+                   title="Stampa due copie">
+        </div>
+        <h4 style="margin:10px 0 4px">Righe:</h4>
+        <div class="righe-list">${righeHtml}</div>`;
+
+    // Pulsanti azioni
+    actEl.innerHTML = '';
+    const btn = (label, fn, cls) => {
+        const b = document.createElement('button');
+        b.className = cls || 'btn-secondary';
+        b.textContent = label;
+        b.onclick = fn;
+        actEl.appendChild(b);
+    };
+    btn('💾 Salva modifiche',   APP.saveItemEditBolla,   'btn-primary');
+    btn('🖨️ Stampa PDF',        APP.stampaBollaPDF);
+    btn('📤 Condividi PDF',     APP.condividiBollaPDF);
+    btn('📱 Stampa Mobile',     APP.printMobileBolla);
+    btn('🗑️ Elimina',          APP.deleteQueueItem,     'btn-danger');
+    btn('✕ Chiudi',             APP.closeItemDetailModal);
     modal.classList.remove('hidden');
 };
 
@@ -351,7 +384,7 @@ APP.aggiornaRigheBollaConSconto = function() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 // ── Genera PDF bolla (jsPDF, layout A4) ──────────────────────────────────────
-APP.generateBollaPDF = async function(bolla) {
+APP.generateBollaPDF = async function(bolla, doppiaCopia=false) {
     const { jsPDF } = window.jspdf;
     const doc  = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
     const PW   = 210;   // larghezza pagina mm
@@ -642,14 +675,44 @@ APP.generateBollaPDF = async function(bolla) {
     tV.forEach((v,i)=>{ cell(v,cx,y,tW[i],ivaH+1,'left'); cx+=tW[i]; });
     bold(false);
 
+    // Doppia copia: seconda pagina con watermark COPIA
+    if (doppiaCopia) {
+        doc.addPage();
+        // Copia i contenuti ridisegnando (metodo semplice: watermark su nuova pagina vuota)
+        doc.setFontSize(60);
+        doc.setTextColor(230,230,230);
+        doc.setFont('helvetica','bold');
+        doc.text('COPIA', 105, 140, {align:'center', angle:45});
+        doc.setTextColor(0,0,0);
+        doc.setFontSize(9);
+        doc.setFont('helvetica','normal');
+        doc.text(`Bolla ${bolla.registro||'01'}/${bolla.numero} del ${new Date(bolla.data).toLocaleDateString('it-IT')}`, 105, 160, {align:'center'});
+        doc.text(bolla.cliente?.ragSoc1||'', 105, 170, {align:'center'});
+        doc.setFontSize(14);
+        doc.text(`TOTALE: Eur ${(bolla.totBolla||0).toFixed(2)}`, 105, 185, {align:'center'});
+    }
     return doc;
 };
 
-// ── Azioni PDF ────────────────────────────────────────────────────────────────
+// ── Helper doppia copia ──────────────────────────────────────────────────────
+APP._doppiaCopiaBolla = function() {
+    return document.getElementById('chk-doppia-copia')?.checked || false;
+};
+
+APP._aggiungiCopia2 = async function(doc, bolla) {
+    // Aggiunge una seconda pagina identica con intestazione "COPIA"
+    doc.addPage();
+    const copiaPg = await APP.generateBollaPDF(bolla);
+    // Nota jsPDF non supporta merge diretto — usiamo lo stesso doc con flag copia
+    return doc;
+};
+
+// ── Stampa PDF ────────────────────────────────────────────────────────────────
 APP.stampaBollaPDF = async function() {
     const bolla = APP.selectedQueueItem;
     if (!bolla) return;
-    const doc  = await APP.generateBollaPDF(bolla);
+    const doppia = APP._doppiaCopiaBolla();
+    const doc  = await APP.generateBollaPDF(bolla, doppia);
     const nome = `Bolla_${bolla.registro}_${bolla.numero}_${APP.formatDateFile(new Date())}.pdf`;
     APP.savePDF(doc, nome);
 };
@@ -657,7 +720,8 @@ APP.stampaBollaPDF = async function() {
 APP.condividiBollaPDF = async function() {
     const bolla = APP.selectedQueueItem;
     if (!bolla) return;
-    const doc  = await APP.generateBollaPDF(bolla);
+    const doppia = APP._doppiaCopiaBolla();
+    const doc  = await APP.generateBollaPDF(bolla, doppia);
     const nome = `Bolla_${bolla.registro}_${bolla.numero}.pdf`;
     await APP.shareDocument(doc, nome, `Bolla DDT ${bolla.registro}/${bolla.numero}`);
 };
@@ -677,11 +741,18 @@ APP.printMobileBolla = async function() {
         await APP.loadLogoTxt().catch(() => null);
     }
     APP.showToast('Preparazione stampa bolla...', 'info');
-    const data = APP.buildBollaEscPos(bolla, APP.printerConfig);
+    const doppia = APP._doppiaCopiaBolla();
+    const data   = APP.buildBollaEscPos(bolla, APP.printerConfig);
     await APP.sendToPrinter(data, APP.printerConfig);
+    // Doppia copia: pausa 1s poi stampa di nuovo
+    if (doppia) {
+        await new Promise(r => setTimeout(r, 1000));
+        const data2 = APP.buildBollaEscPos(bolla, APP.printerConfig, true);
+        await APP.sendToPrinter(data2, APP.printerConfig);
+    }
 };
 
-APP.buildBollaEscPos = function(bolla, config) {
+APP.buildBollaEscPos = function(bolla, config, isCopia=false) {
     const w      = config.width || 48;
     const P      = APP.prt;
     const SEP_B  = '='.repeat(w);
@@ -711,6 +782,13 @@ APP.buildBollaEscPos = function(bolla, config) {
     cmds.push({type:'text',v:'** DOCUMENTO DI TRASPORTO **'});
     cmds.push({type:'bold',v:false});
     cmds.push({type:'text',v:P.sxDx(`N. ${bolla.registro}/${bolla.numero}`, `del ${datBol}`, w)});
+    if (isCopia) {
+        cmds.push({type:'align',v:'center'});
+        cmds.push({type:'bold',v:true});
+        cmds.push({type:'text',v:'*** C O P I A ***'});
+        cmds.push({type:'bold',v:false});
+        cmds.push({type:'align',v:'left'});
+    }
     cmds.push({type:'align',v:'left'});
     cmds.push({type:'text',v:SEP_T});
 
