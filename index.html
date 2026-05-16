@@ -829,6 +829,7 @@ const APP = {
 <script src="js/pdf.js"></script>
 <script src="js/print.js"></script>
   <script src="js/crm.js"></script>
+  <script src="js/bolle-clienti.js"></script>
 
 
 <!-- ==================== CRM LISTA ==================== -->
@@ -930,8 +931,6 @@ const APP = {
     <div id="crm-tab-documenti"    class="crm-tab-panel" style="display:none"></div>
   </div>
 </div>
-</body>
-</html>
 
 <!-- ==================== BOLLE CLIENTI ==================== -->
 <div id="screen-bolle-clienti" class="screen">
@@ -994,6 +993,43 @@ const APP = {
         <select id="bol-cli-pagamento" class="pagamento-select">
           <option value="">-- Seleziona pagamento --</option>
         </select>
+      </div>
+    </div>
+
+    <!-- Agente, Sconto, Destinatario -->
+    <div class="ordine-section">
+      <h3>🔧 Dati Aggiuntivi</h3>
+      <div class="ordine-grid">
+        <div class="ordine-field">
+          <label>Codice Agente</label>
+          <input type="text" id="bol-cli-agente" placeholder="es. 001" maxlength="6">
+        </div>
+        <div class="ordine-field">
+          <label>Sconto % globale</label>
+          <input type="text" id="bol-cli-sconto" placeholder="es. -3 o -3,50" maxlength="8"
+                 oninput="APP.aggiornaRigheBollaConSconto()">
+        </div>
+      </div>
+      <!-- Destinatario diverso (collassabile) -->
+      <div style="margin-top:8px">
+        <button class="btn-secondary" style="width:100%;font-size:12px"
+                onclick="APP.toggleDestDiverso()">
+          👤 Destinatario diverso dall'intestatario (opzionale)
+        </button>
+      </div>
+      <div id="dest-diverso-section" style="display:none;margin-top:8px">
+        <div class="ordine-field"><label>Ragione Sociale</label>
+          <input type="text" id="dest-rag-soc" placeholder="Ragione sociale destinatario"></div>
+        <div class="ordine-field"><label>Indirizzo</label>
+          <input type="text" id="dest-ind" placeholder="Via..."></div>
+        <div class="ordine-grid">
+          <div class="ordine-field"><label>CAP</label>
+            <input type="text" id="dest-cap" maxlength="5"></div>
+          <div class="ordine-field"><label>Città</label>
+            <input type="text" id="dest-loc"></div>
+          <div class="ordine-field"><label>Prov.</label>
+            <input type="text" id="dest-pro" maxlength="2"></div>
+        </div>
       </div>
     </div>
 
@@ -1126,3 +1162,6 @@ const APP = {
     </div>
   </div>
 </div>
+
+</body>
+</html>
