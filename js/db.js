@@ -3,7 +3,7 @@
 // ==========================================
 
 const DB_NAME = 'PicamDB';
-const DB_VERSION = 6; // v6: Aggiunto store crmClienti per modulo CRM
+const DB_VERSION = 7; // v7: Aggiunto store queueBolleClienti e storicoBolleClienti
 
 let db = null;
 
@@ -118,12 +118,21 @@ function initDB() {
             // Store CRM CLIENTI (v6) - caricato da crm_clienti.xlsx su Drive
             if (!database.objectStoreNames.contains('crmClienti')) {
                 const crmStore = database.createObjectStore('crmClienti', { keyPath: 'cod_cli' });
-                crmStore.createIndex('rag_soc_1',   'rag_soc_1',   { unique: false });
-                crmStore.createIndex('cod_agente',  'cod_agente',  { unique: false });
-                crmStore.createIndex('cod_zona',    'cod_zona',    { unique: false });
-                crmStore.createIndex('localita',    'localita',    { unique: false });
-                crmStore.createIndex('saldo',       'saldo',       { unique: false });
+                crmStore.createIndex('rag_soc_1',      'rag_soc_1',      { unique: false });
+                crmStore.createIndex('cod_agente',     'cod_agente',     { unique: false });
+                crmStore.createIndex('cod_zona',       'cod_zona',       { unique: false });
+                crmStore.createIndex('localita',       'localita',       { unique: false });
+                crmStore.createIndex('saldo',          'saldo',          { unique: false });
                 crmStore.createIndex('ultima_fattura', 'ultima_fattura', { unique: false });
+            }
+            if (!database.objectStoreNames.contains('queueBolleClienti')) {
+                database.createObjectStore('queueBolleClienti', { keyPath: 'id', autoIncrement: true });
+            }
+            if (!database.objectStoreNames.contains('storicoBolleClienti')) {
+                const storicoBolle = database.createObjectStore('storicoBolleClienti', { keyPath: 'id', autoIncrement: true });
+                storicoBolle.createIndex('idx_data',      'data',      { unique: false });
+                storicoBolle.createIndex('idx_cliente',   'cliente',   { unique: false });
+                storicoBolle.createIndex('idx_timestamp', 'timestamp', { unique: false });
             }
 
             console.log('Schema IndexedDB v6 creato');

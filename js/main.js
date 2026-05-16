@@ -499,6 +499,7 @@ APP.updateHeaderQueueCount = async function(context) {
     switch(context) {
         case 'inv':      storeName = 'queueInventario';       elId = 'header-queue-count-inv';     break;
         case 'ordCli':   storeName = 'queueOrdiniClienti';    elId = 'header-queue-count-ord-cli';  break;
+        case 'bolCli':   storeName = 'queueBolleClienti';      elId = 'header-queue-count-bol-cli';  break;
         case 'ordFor':   storeName = 'queueOrdiniFornitori';  elId = 'header-queue-count-ord-for';  break;
         default: return;
     }
@@ -517,7 +518,9 @@ APP.performSearch = async function(context) {
         case 'inv':        inputId = 'search-inv';           resultsId = 'results-inv';           break;
         case 'artOrdCli':  inputId = 'search-art-ord-cli';   resultsId = 'results-art-ord-cli';   break;
         case 'artOrdFor':  inputId = 'search-art-ord-for';   resultsId = 'results-art-ord-for';   break;
+        case 'artBolCli':  inputId = 'search-art-bol-cli';   resultsId = 'results-art-bol-cli';   break;
         case 'cliente':    inputId = 'search-cliente';       resultsId = 'results-cliente';        break;
+        case 'clienteBolla':inputId='search-cliente-bolla';  resultsId = 'results-cliente-bolla'; break;
         case 'fornitore':  inputId = 'search-fornitore';     resultsId = 'results-fornitore';      break;
         default: return;
     }
@@ -527,7 +530,13 @@ APP.performSearch = async function(context) {
     if (query.length < 2) { container.innerHTML = ''; return; }
     try {
         let results;
-        if (context === 'cliente') {
+        if (context === 'clienteBolla') {
+            APP.searchClientiBolla(query);
+            return;
+        } else if (context === 'artBolCli') {
+            APP.searchArticoliBolCli(query);
+            return;
+        } else if (context === 'cliente') {
             results = await DB.searchClienti(query);
             APP.renderSearchResults(results, container, context);
         } else if (context === 'fornitore') {
@@ -591,6 +600,7 @@ APP.handleSelectArticolo = function(articolo, context) {
     switch(context) {
         case 'inv':       appContext = 'inventario';       break;
         case 'artOrdCli': appContext = 'ordiniClienti';    break;
+        case 'artBolCli': appContext = 'bolleClienti';     break;
         case 'artOrdFor': appContext = 'ordiniFornitori';  break;
         default:          appContext = context;
     }
@@ -856,6 +866,10 @@ APP.processArticoloWithQty = async function(qty, prezzoInserito = null, locazion
             APP.addRigaOrdineCliente(articolo, qty, prezzoInserito);
             APP.showToast(`${articolo.codice} aggiunto`, 'success');
             break;
+        case 'bolleClienti':
+            APP.addRigaBollaCliente(articolo, qty, prezzoInserito);
+            APP.showToast(`${articolo.codice} aggiunto`, 'success');
+            break;
         case 'ordiniFornitori':
             APP.addRigaOrdineFornitore(articolo, qty, prezzoInserito);
             APP.showToast(`${articolo.codice} aggiunto`, 'success');
@@ -864,7 +878,7 @@ APP.processArticoloWithQty = async function(qty, prezzoInserito = null, locazion
 
     APP.selectedArticolo = null;
     APP.qtyContext = null;
-    APP.updateHeaderQueueCount(context === 'inventario' ? 'inv' : context === 'ordiniClienti' ? 'ordCli' : 'ordFor');
+    APP.updateHeaderQueueCount(context === 'inventario' ? 'inv' : context === 'ordiniClienti' ? 'ordCli' : context === 'bolleClienti' ? 'bolCli' : 'ordFor');
 };
 
 // ---------- SCANNER ----------
@@ -916,6 +930,7 @@ APP.onScanSuccess = async function(barcode) {
     switch(context) {
         case 'inv':    searchContext = 'inv';       APP.currentContext = 'inventario';       APP.qtyContext = 'inv';       break;
         case 'ordCli': searchContext = 'artOrdCli'; APP.currentContext = 'ordiniClienti';    APP.qtyContext = 'artOrdCli'; break;
+        case 'bolCli': searchContext = 'artBolCli'; APP.currentContext = 'bolleClienti';     APP.qtyContext = 'artBolCli'; break;
         case 'ordFor': searchContext = 'artOrdFor'; APP.currentContext = 'ordiniFornitori';  APP.qtyContext = 'artOrdFor'; break;
         default: return;
     }
@@ -1006,7 +1021,7 @@ APP.initWithAuth = async function() {
 };
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('PICAM v4.05 - Inizializzazione...');
+    console.log('PICAM v4.07 - Inizializzazione...');
 
     // Carica configurazione
     APP.loadConfig();
@@ -1051,3 +1066,71 @@ if ('serviceWorker' in navigator) {
             .catch(e => console.error('Errore SW:', e));
     });
 }
+
+// ── BOLLE CLIENTI — search functions ────────────────────────────────────────
+APP.searchClientiBolla = async function(query) {
+    const el = document.getElementById('results-cliente-bolla');
+    if (!el) return;
+    if (!query || query.length < 1) { el.innerHTML = ''; return; }
+    try {
+        const risultati = await DB.searchClienti(query);
+        el.innerHTML = risultati.slice(0,20).map(c =>
+            `<div class="result-item" onclick="APP.selectClienteBolla('${c.codice}')">
+                <div class="result-title">${c.ragSoc1}</div>
+                <div class="result-sub">${c.localita||''} — Cod: ${c.codice}</div>
+             </div>`
+        ).join('') || '<p style="padding:8px;color:#999">Nessun risultato</p>';
+    } catch(e) { el.innerHTML = ''; }
+};
+
+APP.selectClienteBolla = async function(codice) {
+    try {
+        const c = await DB.getCliente(codice);
+        if (!c) return;
+        APP.currentBollaClienti.cliente = c;
+        document.getElementById('results-cliente-bolla').innerHTML = '';
+        document.getElementById('search-cliente-bolla').value = '';
+        // Pre-seleziona pagamento dal cliente
+        if (c.codPag) {
+            const sel = document.getElementById('bol-cli-pagamento');
+            if (sel) {
+                for (let opt of sel.options) {
+                    if (opt.value === c.codPag) { sel.value = c.codPag; break; }
+                }
+            }
+        }
+        APP.renderSelectedClienteBolla();
+        APP.updateBtnConfermaBolCli();
+    } catch(e) { APP.showToast('Errore selezione cliente','error'); }
+};
+
+APP.searchArticoliBolCli = async function(query) {
+    const el = document.getElementById('results-art-bol-cli');
+    if (!el) return;
+    if (!query || query.length < 2) { el.innerHTML = ''; return; }
+    try {
+        const risultati = await DB.searchArticoli(query);
+        el.innerHTML = risultati.slice(0,30).map(a =>
+            `<div class="result-item" onclick="APP.selectArticoloBolCli('${a.codice}')">
+                <div class="result-title">${a.codice} — ${a.des1}</div>
+                <div class="result-sub">UM: ${a.um||'Nr.'} | Prezzo: ${APP.formatCurrency(a.prezzo||0)}</div>
+             </div>`
+        ).join('') || '<p style="padding:8px;color:#999">Nessun articolo</p>';
+    } catch(e) { el.innerHTML = ''; }
+};
+
+APP.selectArticoloBolCli = async function(codice) {
+    try {
+        const a = await DB.getArticolo(codice);
+        if (!a) return;
+        document.getElementById('results-art-bol-cli').innerHTML = '';
+        document.getElementById('search-art-bol-cli').value = '';
+        if (APP.fastScanMode && APP.fastScanMode.bolCli) {
+            APP.addRigaBollaCliente(a, 1);
+        } else {
+            APP.selectedArticolo = a;
+            APP.qtyContext = 'bolCli';
+            APP.openQtyModal(a, 'bolCli');
+        }
+    } catch(e) { APP.showToast('Errore selezione articolo','error'); }
+};

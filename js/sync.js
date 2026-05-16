@@ -10,6 +10,7 @@ APP.syncQueue = async function(context) {
         switch(context) {
             case 'inventario':     await APP.syncInventario();      break;
             case 'ordiniClienti':  await APP.syncOrdiniClienti();   break;
+            case 'bolleClienti':   await APP.syncBolleClienti();    break;
             case 'ordiniFornitori':await APP.syncOrdiniFornitori(); break;
         }
         APP.showToast('Sincronizzazione completata!', 'success');
@@ -51,6 +52,83 @@ APP.syncInventario = async function() {
     APP.updateBadges();
 };
 
+
+
+// ---------- SYNC BOLLE CLIENTI (ddt-anagrafiche, ddt-testate, ddt-dettagli) ----------
+APP.syncBolleClienti = async function() {
+    const queue = await DB.getQueue('queueBolleClienti');
+    if (!queue.length) { APP.showToast('Nessuna bolla da sincronizzare','error'); return; }
+    const folderId = await APP.findFolder(APP.config.folder);
+    if (!folderId) throw new Error('Cartella Drive non trovata');
+
+    const enc  = s => new TextEncoder().encode(s);
+    const q    = v => (v!==undefined&&v!==null&&v!=='') ? '"'+String(v)+'"' : '""';
+    const n    = v => (v!==undefined&&v!==null&&v!=='') ? String(v) : '';
+    const CRLF = String.fromCharCode(13,10);
+    const fmt2 = v => v ? Number(v).toFixed(2).replace('.',',') : '';
+
+    // raccoglie clienti unici
+    const clientiMap = {};
+    queue.forEach(b => { if(b.cliente&&b.cliente.codice) clientiMap[b.cliente.codice]=b.cliente; });
+
+    // ddt-anagrafiche
+    let ana = '';
+    Object.values(clientiMap).forEach(c => {
+        ana += [n(c.codice),q(c.ragSoc1),q(c.ragSoc2||''),q(c.indirizzo||''),
+                q(c.cap||''),q(c.localita||''),q(c.provincia||''),
+                q(c.email||c.eMail||''),q(c.telefono||''),
+                q(c.partitaIva||''),q(c.pec||'')].join('|')+'|'+CRLF;
+    });
+
+    // ddt-testate
+    let tes = '';
+    queue.forEach(b => {
+        const datBol = b.data ? APP.fmtDDMMYYYY(new Date(b.data)) : '';
+        tes += [n(b.cliente.codice),q(b.cauMag||'ven'),q(b.codDep||'01'),
+                n(b.pagamento&&b.pagamento.codice||''),n(datBol),
+                '','','',q('BOL'),n(b.segFat||'S'),n(b.tipBol||'S'),
+                n(Math.round(b.totNetto||0)),n(Math.round(b.totIva||0)),
+                n(Math.round(b.totBolla||0)),n(Math.round(b.totBolla||0)),
+                q(b.registro||'01'),n(b.numero||1),
+                q(b.aspEst||''),q(b.cauTra||''),n(b.tipPor||'A'),n(b.tipSpe||'D'),
+                n(b.datIniTra||''),n(b.oraIniTra||'')].join('|')+'|'+CRLF;
+    });
+
+    // ddt-dettagli (39 campi)
+    let det = '';
+    queue.forEach(b => {
+        const datBol  = b.data ? APP.fmtDDMMYYYY(new Date(b.data)) : '';
+        const datSlash= b.data ? APP.fmtDDMMYYYYslash(new Date(b.data)) : '';
+        const codCli  = n(b.cliente.codice);
+        const nomBol  = q(b.registro||'01');
+        const numBol  = n(b.numero||1);
+        const codDep  = q(b.codDep||'01');
+        let np = 0;
+        b.righe.forEach(r => {
+            np++;
+            const impLor = r.qty*r.prezzo;
+            const impNet = impLor*(1-(r.sconto||0)/100);
+            const ali    = r.aliIva||APP.getAliquotaIvaSync(r.codIvaVendita||'22');
+            det += [
+                q(r.codice),codCli,q(r.des1||''),q(r.des2||''),q(r.um||'Nr.'),
+                n(r.qty),n(Math.round(impNet)),'',
+                nomBol,'',q(r.codIvaVendita||'22'),n(r.gruppo||''),numBol,
+                '','','','A',n(np),n(np),'','','80',n(b.codDep||'2'),
+                '',codDep,'','',n(datBol),
+                n(Math.round(impLor)),fmt2(impNet),n(Math.round(impNet)),'',
+                n(ali),'N','',fmt2(r.qty),n(datSlash),'',''
+            ].join('|')+'|'+CRLF;
+        });
+    });
+
+    await APP.uploadFile(folderId,'ddt-anagrafiche',enc(ana),'text/plain');
+    await APP.uploadFile(folderId,'ddt-testate',    enc(tes),'text/plain');
+    await APP.uploadFile(folderId,'ddt-dettagli',   enc(det),'text/plain');
+    await DB.clearQueue('queueBolleClienti');
+    APP.updateHeaderQueueCount('bolCli');
+    APP.updateBadges();
+    try { await APP.syncStoricoToDrive('bolleClienti'); } catch(e){}
+};
 
 // ---------- SYNC RILEVAZIONE (movint.txt) ----------
 // Produce un file di testo con formato codice_articolo;quantità

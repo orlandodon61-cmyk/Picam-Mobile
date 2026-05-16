@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#37474F">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>PICAM v4.05</title>
+  <title>PICAM v4.07</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -27,7 +27,7 @@
       <div class="logo-icon-small">📦</div>
       <div class="logo-text">
         <span class="logo-title-inline">PICAM</span>
-        <span class="logo-subtitle-inline">Inventario &amp; Ordini v4.05</span>
+        <span class="logo-subtitle-inline">Inventario &amp; Ordini v4.07</span>
       </div>
     </div>
 
@@ -96,7 +96,7 @@
 <!-- ==================== MENU ==================== -->
 <div id="screen-menu" class="screen">
   <header class="main-header">
-    <div class="header-left"><span class="header-title">PICAM v4.05</span></div>
+    <div class="header-left"><span class="header-title">PICAM v4.07</span></div>
     <div class="header-right">
       <button class="btn-icon-only" onclick="APP.refreshData()">🔄</button>
       <button class="btn-icon-only" onclick="APP.openSettings()">⚙️</button>
@@ -119,6 +119,14 @@
           <div class="menu-card-desc">Creazione ordini clienti</div>
         </div>
         <span class="menu-card-badge" id="badge-ordini-clienti"></span>
+      </div>
+      <div class="menu-card bolle" onclick="APP.openBolleClienti()">
+        <div class="menu-card-icon">📦</div>
+        <div class="menu-card-content">
+          <div class="menu-card-title">Bolle Clienti</div>
+          <div class="menu-card-desc">Creazione DDT / Bolle</div>
+        </div>
+        <span class="menu-card-badge" id="badge-bolle-clienti"></span>
       </div>
       <div class="menu-card fornitori" onclick="APP.openOrdiniFornitori()">
         <div class="menu-card-icon">🏭</div>
@@ -924,3 +932,197 @@ const APP = {
 </div>
 </body>
 </html>
+
+<!-- ==================== BOLLE CLIENTI ==================== -->
+<div id="screen-bolle-clienti" class="screen">
+  <header class="main-header">
+    <div class="header-left">
+      <button class="btn-back" onclick="APP.goToMenu()">←</button>
+      <span class="header-title">Bolle Clienti</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-queue-main" onclick="APP.openQueueModal('bolleClienti')">
+        📋 GESTIONE <span id="header-queue-count-bol-cli" class="queue-badge"></span>
+      </button>
+    </div>
+  </header>
+  <div class="ordine-container">
+
+    <!-- Dati bolla -->
+    <div class="ordine-section">
+      <h3>📄 Dati Bolla / DDT</h3>
+      <div class="ordine-grid">
+        <div class="ordine-field">
+          <label>Registro</label>
+          <input type="text" id="bol-cli-registro" value="01" maxlength="4">
+        </div>
+        <div class="ordine-field">
+          <label>Numero</label>
+          <input type="number" id="bol-cli-numero" value="1">
+        </div>
+        <div class="ordine-field">
+          <label>Data</label>
+          <input type="text" id="bol-cli-data" readonly>
+        </div>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn-secondary" style="width:100%" onclick="APP.apriOpzioniBollaDDT()">
+          ⚙️ Opzioni DDT (porto, causale, trasporto...)
+        </button>
+      </div>
+    </div>
+
+    <!-- Cliente -->
+    <div class="ordine-section">
+      <h3>👤 Cliente</h3>
+      <div class="search-bar mb-12">
+        <span>🔍</span>
+        <input type="text" id="search-cliente-bolla" placeholder="Cerca cliente..."
+               oninput="APP.debounceSearch('clienteBolla')">
+      </div>
+      <div id="results-cliente-bolla" class="results-list"></div>
+      <div id="selected-cliente-bolla" class="cliente-info empty">
+        <span>Nessun cliente selezionato</span>
+      </div>
+    </div>
+
+    <!-- Pagamento -->
+    <div class="ordine-section">
+      <h3>💳 Pagamento</h3>
+      <div class="ordine-field">
+        <label>Modalità Pagamento</label>
+        <select id="bol-cli-pagamento" class="pagamento-select">
+          <option value="">-- Seleziona pagamento --</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Articoli -->
+    <div class="ordine-section">
+      <h3>📦 Articoli</h3>
+      <div class="scan-mode-toggle">
+        <label class="toggle-label">
+          <input type="checkbox" id="fast-scan-bol-cli" onchange="APP.toggleFastScan('bolCli')">
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-text">⚡ Scansione veloce</span>
+      </div>
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="search-art-bol-cli" placeholder="Cerca articolo..."
+               oninput="APP.debounceSearch('artBolCli')">
+        <button class="btn-filter-toggle" onclick="APP.toggleArticoliFilters('artBolCli')">⚙️</button>
+        <button class="btn-scan" onclick="APP.startScan('bolCli')">📷</button>
+      </div>
+      <div class="articoli-filters hidden" id="articoli-filters-artBolCli">
+        <div class="filter-row">
+          <select id="filter-gruppo-artBolCli" onchange="APP.applyArticoliFilters('artBolCli')">
+            <option value="">📦 Tutti i gruppi</option>
+          </select>
+          <select id="filter-locazione-artBolCli" onchange="APP.applyArticoliFilters('artBolCli')">
+            <option value="">📍 Tutte le locazioni</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <select id="filter-giacenza-artBolCli" onchange="APP.applyArticoliFilters('artBolCli')">
+            <option value="">📊 Tutte le giacenze</option>
+            <option value="positive">Con giacenza &gt; 0</option>
+            <option value="zero">Giacenza = 0</option>
+          </select>
+          <button class="btn-reset-filters" onclick="APP.resetArticoliFilters('artBolCli')">🔄 Reset</button>
+        </div>
+      </div>
+      <div id="results-art-bol-cli" class="results-list mt-12"></div>
+      <div class="righe-list" id="righe-bol-cli"></div>
+    </div>
+
+    <!-- Totali -->
+    <div class="ordine-section totali" id="totali-bol-cli">
+      <div class="totali-grid">
+        <div class="totale-row"><span>Articoli</span><span id="tot-bol-articoli">0</span></div>
+        <div class="totale-row"><span>Quantità totale</span><span id="tot-bol-qta">0</span></div>
+        <div class="totale-row totale-importo"><span>Imponibile</span><span id="tot-bol-imponibile">€ 0,00</span></div>
+        <div class="totale-row totale-importo"><span>IVA</span><span id="tot-bol-iva">€ 0,00</span></div>
+        <div class="totale-row totale-finale"><span>TOTALE BOLLA</span><span id="tot-bol-totale">€ 0,00</span></div>
+      </div>
+    </div>
+
+    <button class="btn-confirm-order" id="btn-conferma-bol-cli"
+            onclick="APP.confermaBollaCliente()" disabled>
+      ✅ Conferma Bolla / DDT
+    </button>
+  </div>
+</div>
+
+<!-- ==================== MODAL OPZIONI DDT ==================== -->
+<div class="modal-overlay hidden" id="modal-opzioni-ddt">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>⚙️ Opzioni DDT</h3>
+      <button class="btn-close" onclick="APP.chiudiOpzioniBollaDDT()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-grid-2">
+        <div class="printer-field">
+          <label>Segue fattura</label>
+          <select id="bol-opt-seg-fat">
+            <option value="S">S — Sì</option>
+            <option value="N">N — No</option>
+          </select>
+        </div>
+        <div class="printer-field">
+          <label>Tipo bolla</label>
+          <select id="bol-opt-tip-bol">
+            <option value="S">S — Scarico</option>
+            <option value="C">C — Carico</option>
+          </select>
+        </div>
+        <div class="printer-field">
+          <label>Causale magazzino</label>
+          <input type="text" id="bol-opt-cau-mag" value="ven" maxlength="10">
+        </div>
+        <div class="printer-field">
+          <label>Codice deposito</label>
+          <input type="text" id="bol-opt-cod-dep" value="01" maxlength="4">
+        </div>
+        <div class="printer-field">
+          <label>Tipo porto</label>
+          <select id="bol-opt-tip-por">
+            <option value="A">A — Assegnato</option>
+            <option value="F">F — Franco</option>
+          </select>
+        </div>
+        <div class="printer-field">
+          <label>Tipo spedizione</label>
+          <select id="bol-opt-tip-spe">
+            <option value="D">D — Destinatario</option>
+            <option value="M">M — Mittente</option>
+            <option value="V">V — Vettore</option>
+          </select>
+        </div>
+      </div>
+      <div class="printer-field">
+        <label>Aspetto esteriore beni</label>
+        <input type="text" id="bol-opt-asp-est" placeholder="es. a vista">
+      </div>
+      <div class="printer-field">
+        <label>Causale trasporto</label>
+        <input type="text" id="bol-opt-cau-tra" placeholder="es. Vendita">
+      </div>
+      <div class="settings-grid-2">
+        <div class="printer-field">
+          <label>Data inizio trasporto</label>
+          <input type="text" id="bol-opt-dat-tra" placeholder="DDMMYYYY" maxlength="8">
+        </div>
+        <div class="printer-field">
+          <label>Ora inizio trasporto</label>
+          <input type="text" id="bol-opt-ora-tra" placeholder="HHMM" maxlength="4">
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn-primary" onclick="APP.salvaOpzioniBollaDDT()">💾 Salva</button>
+        <button class="btn-secondary" onclick="APP.chiudiOpzioniBollaDDT()">Annulla</button>
+      </div>
+    </div>
+  </div>
+</div>
