@@ -18,7 +18,7 @@ APP.openQueueModal = async function(context) {
     const modal = document.getElementById('modal-queue');
     const titleEl = document.getElementById('queue-modal-title');
 
-    const titles = { inventario: '📋 Inventario / Rilevazione', ordiniClienti: '🛒 Ordini Clienti', ordiniFornitori: '🏭 Ordini Fornitori' };
+    const titles = { inventario: '📋 Inventario / Rilevazione', ordiniClienti: '🛒 Ordini Clienti', ordiniFornitori: '🏭 Ordini Fornitori', bolleClienti: '📦 Bolle Clienti' };
     titleEl.textContent = titles[context] || 'Gestione';
 
     // Filtri: mostra/nascondi in base al contesto
@@ -32,13 +32,13 @@ APP.openQueueModal = async function(context) {
 };
 
 APP.loadQueueData = async function() {
-    const storeMap = { inventario: 'queueInventario', ordiniClienti: 'queueOrdiniClienti', ordiniFornitori: 'queueOrdiniFornitori' };
+    const storeMap = { inventario: 'queueInventario', ordiniClienti: 'queueOrdiniClienti', ordiniFornitori: 'queueOrdiniFornitori', bolleClienti: 'queueBolleClienti' };
     const storeName = storeMap[APP.queueContext];
     APP.queueData = storeName ? await DB.getQueue(storeName) : [];
 };
 
 APP.loadStoricoData = async function() {
-    const storeMap = { inventario: null, ordiniClienti: 'storicoOrdiniClienti', ordiniFornitori: 'storicoOrdiniFornitori' };
+    const storeMap = { inventario: null, ordiniClienti: 'storicoOrdiniClienti', ordiniFornitori: 'storicoOrdiniFornitori', bolleClienti: 'storicoBolleClienti' };
     const storeName = storeMap[APP.queueContext];
     APP.storicoData = storeName ? (await DB.getStorico(storeName).catch(() => [])) : [];
 };
@@ -100,7 +100,7 @@ APP.renderQueueList = async function(data = null) {
                     </div>
                 </div>`;
         } else {
-            const sogg = context === 'ordiniClienti' ? item.cliente : item.fornitore;
+            const sogg = (context === 'ordiniClienti' || context === 'bolleClienti') ? item.cliente : item.fornitore;
             const syncIcon = item.synced ? '✅' : '⏳';
             html += `
                 <div class="queue-item" onclick="APP.selectQueueItem(${index})">
@@ -266,7 +266,7 @@ APP.deleteQueueItem = async function() {
     if (!confirm('Vuoi eliminare questo elemento?')) return;
     const context = APP.queueContext;
     const item = APP.selectedQueueItem;
-    const storeMap = { inventario: 'queueInventario', ordiniClienti: 'queueOrdiniClienti', ordiniFornitori: 'queueOrdiniFornitori' };
+    const storeMap = { inventario: 'queueInventario', ordiniClienti: 'queueOrdiniClienti', ordiniFornitori: 'queueOrdiniFornitori', bolleClienti: 'queueBolleClienti' };
     await DB.deleteFromQueue(storeMap[context], item.id || item.timestamp);
     APP.showToast('Elemento eliminato', 'success');
     APP.closeItemDetailModal();
@@ -277,7 +277,7 @@ APP.deleteQueueItem = async function() {
 
 APP.clearQueue = async function(context) {
     if (!confirm('Vuoi svuotare la coda?')) return;
-    const storeMap = { inventario: 'queueInventario', ordiniClienti: 'queueOrdiniClienti', ordiniFornitori: 'queueOrdiniFornitori' };
+    const storeMap = { inventario: 'queueInventario', ordiniClienti: 'queueOrdiniClienti', ordiniFornitori: 'queueOrdiniFornitori', bolleClienti: 'queueBolleClienti' };
     await DB.clearQueue(storeMap[context]);
     APP.updateBadges();
     APP.closeQueueModal();
@@ -341,7 +341,7 @@ APP.clearStoricoConfirm = function() {
 };
 
 APP.clearStorico = async function() {
-    const storeMap = { ordiniClienti: 'storicoOrdiniClienti', ordiniFornitori: 'storicoOrdiniFornitori' };
+    const storeMap = { ordiniClienti: 'storicoOrdiniClienti', ordiniFornitori: 'storicoOrdiniFornitori', bolleClienti: 'storicoBolleClienti' };
     const storeName = storeMap[APP.queueContext];
     if (!storeName) return;
     await DB.clearStorico(storeName);

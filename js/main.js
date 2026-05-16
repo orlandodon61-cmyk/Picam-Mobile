@@ -1109,27 +1109,6 @@ APP.searchArticoliBolCli = async function(query) {
     if (!query || query.length < 2) { el.innerHTML = ''; return; }
     try {
         const risultati = await DB.searchArticoli(query);
-        el.innerHTML = risultati.slice(0,30).map(a =>
-            `<div class="result-item" onclick="APP.selectArticoloBolCli('${a.codice}')">
-                <div class="result-title">${a.codice} — ${a.des1}</div>
-                <div class="result-sub">UM: ${a.um||'Nr.'} | Prezzo: ${APP.formatCurrency(a.prezzo||0)}</div>
-             </div>`
-        ).join('') || '<p style="padding:8px;color:#999">Nessun articolo</p>';
+        APP.renderSearchResults(risultati, el, 'artBolCli');
     } catch(e) { el.innerHTML = ''; }
-};
-
-APP.selectArticoloBolCli = async function(codice) {
-    try {
-        const a = await DB.getArticolo(codice);
-        if (!a) return;
-        document.getElementById('results-art-bol-cli').innerHTML = '';
-        document.getElementById('search-art-bol-cli').value = '';
-        if (APP.fastScanMode && APP.fastScanMode.bolCli) {
-            APP.addRigaBollaCliente(a, 1);
-        } else {
-            APP.selectedArticolo = a;
-            APP.qtyContext = 'bolCli';
-            APP.openQtyModal(a, 'bolCli');
-        }
-    } catch(e) { APP.showToast('Errore selezione articolo','error'); }
 };
