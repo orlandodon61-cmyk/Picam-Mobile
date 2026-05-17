@@ -245,82 +245,175 @@ APP.confermaBollaCliente = async function() {
     APP.showToast(`Bolla ${bollaCompleta.registro}/${bollaCompleta.numero} aggiunta alla coda`,'success');
 };
 
-// ── Dettaglio bolla in coda ───────────────────────────────────────────────────
+// ── Dettaglio bolla in coda — editing completo ───────────────────────────────
 APP.openItemDetailBolleClienti = function() {
-    const item     = APP.selectedQueueItem;
-    const modal    = document.getElementById('modal-item-detail');
-    const titleEl  = document.getElementById('item-detail-title');
-    const contEl   = document.getElementById('item-detail-content');
-    const actEl    = document.getElementById('item-detail-actions');
+    const item    = APP.selectedQueueItem;
+    const modal   = document.getElementById('modal-item-detail');
+    const titleEl = document.getElementById('item-detail-title');
+    const contEl  = document.getElementById('item-detail-content');
+    const actEl   = document.getElementById('item-detail-actions');
     if (!modal || !item) return;
 
+    titleEl.textContent = `📦 Bolla ${item.registro||'01'}/${item.numero}`;
+    APP._renderBollaDetailContent(item, contEl);
+
+    actEl.innerHTML = '';
+    const btn = (lbl, fn, cls) => {
+        const b = document.createElement('button');
+        b.className = cls || 'btn-secondary';
+        b.textContent = lbl; b.onclick = fn;
+        actEl.appendChild(b);
+    };
+    btn('💾 Salva',         APP.saveItemEditBolla,   'btn-primary');
+    btn('🖨️ PDF',           APP.stampaBollaPDF);
+    btn('📤 Condividi',     APP.condividiBollaPDF);
+    btn('📱 Mobile',        APP.printMobileBolla);
+    btn('🗑️ Elimina bolla', APP.deleteQueueItem,    'btn-danger');
+    btn('✕ Chiudi',         APP.closeItemDetailModal);
+    modal.classList.remove('hidden');
+};
+
+APP._renderBollaDetailContent = function(item, contEl) {
     let tot = 0;
-    const righeHtml = item.righe.map((r, i) => {
+    const righeHtml = (item.righe || []).map((r, i) => {
+        if (r.tipo === 'testo') {
+            return `<div class="riga-detail" style="background:#fffde7">
+              <div class="riga-info" style="flex:1">
+                <span style="font-size:10px;color:#888">📝 NOTA</span>
+                <input type="text" class="riga-testo-edit" data-idx="${i}"
+                       value="${(r.testo||r.des1||'').replace(/"/g,'&quot;')}"
+                       style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px">
+              </div>
+              <button class="btn-remove-riga" onclick="APP.deleteRigaBollaDetail(${i})"
+                      style="color:#c62828">🗑️</button>
+            </div>`;
+        }
         const t = (Number(r.qty)||0) * (Number(r.prezzo)||0); tot += t;
         return `<div class="riga-detail riga-detail-cliente">
-          <div class="riga-info">
-            <span class="riga-cod">${r.codice}</span>
-            <span class="riga-desc">${(r.des1||'').substring(0,28)}</span>
+          <div class="riga-info" style="flex:1">
+            <div style="display:flex;gap:6px;align-items:baseline">
+              <span class="riga-cod">${r.codice}</span>
+              <span class="riga-desc" style="font-size:11px">${(r.des1||'').substring(0,25)}</span>
+            </div>
+            <div class="riga-inputs" style="margin-top:4px">
+              <label style="font-size:10px">Qtà:</label>
+              <input type="number" class="riga-qty-edit" data-idx="${i}"
+                     value="${r.qty}" min="0.001" step="0.001"
+                     style="width:55px" onchange="APP.updateRigaTotaleBolla(${i})">
+              <label style="font-size:10px">Prezzo:</label>
+              <input type="number" class="riga-prezzo-edit" data-idx="${i}"
+                     value="${Number(r.prezzo||0).toFixed(4)}" step="0.0001" min="0"
+                     style="width:85px;background:#e8f5e9"
+                     onchange="APP.updateRigaTotaleBolla(${i})">
+              <span class="riga-tot" id="riga-tot-bol-${i}">€ ${t.toFixed(2)}</span>
+            </div>
           </div>
-          <div class="riga-inputs">
-            <label>Qtà:</label>
-            <input type="number" class="riga-qty-edit" data-idx="${i}"
-                   value="${r.qty}" min="0.001" step="0.001" style="width:60px"
-                   onchange="APP.updateRigaTotaleBolla(${i})">
-            <label>Prezzo:</label>
-            <input type="number" class="riga-prezzo-edit" data-idx="${i}"
-                   value="${Number(r.prezzo||0).toFixed(4)}" step="0.0001" min="0"
-                   style="width:90px;background:#e8f5e9"
-                   onchange="APP.updateRigaTotaleBolla(${i})">
-            <span class="riga-tot" id="riga-tot-bol-${i}">€ ${t.toFixed(2)}</span>
-          </div>
+          <button class="btn-remove-riga" onclick="APP.deleteRigaBollaDetail(${i})"
+                  style="color:#c62828">🗑️</button>
         </div>`;
     }).join('');
 
     const dataBolla = item.data ? APP.formatDate(new Date(item.data)) : '';
-    const tipBolStr = item.tipBol === 'S' ? 'Scarico' : 'Carico';
-    const tipPorStr = item.tipPor === 'F' ? 'Franco' : 'Assegnato';
-    const tipSpeStr = item.tipSpe === 'M' ? 'Mittente' : item.tipSpe === 'V' ? 'Vettore' : 'Destinatario';
-
-    titleEl.textContent = `📦 Bolla ${item.registro||'01'}/${item.numero}`;
     contEl.innerHTML = `
         <div class="detail-row"><label>Cliente:</label><span>${item.cliente?.ragSoc1||''}</span></div>
         <div class="detail-row"><label>Data:</label><span>${dataBolla}</span></div>
-        <div class="detail-row"><label>Agente:</label><span>${item.codAgente||'-'}</span></div>
-        <div class="detail-row"><label>Tipo bolla:</label><span>${tipBolStr}</span></div>
-        <div class="detail-row"><label>Causale tras.:</label><span>${item.cauTra||'-'}</span></div>
-        <div class="detail-row"><label>Aspetto:</label><span>${item.aspEst||'-'}</span></div>
-        <div class="detail-row"><label>Porto:</label><span>${tipPorStr}</span></div>
-        <div class="detail-row"><label>Trasporto a cura:</label><span>${tipSpeStr}</span></div>
-        <div class="detail-row"><label>Data/ora tra.:</label>
-            <span>${item.datIniTra||''} ${item.oraIniTra||''}</span></div>
-        <div class="detail-row"><label>Totale bolla:</label>
+        <div class="detail-row"><label>Tipo doc.:</label>
+            <span>${item.tipDoc||'BOL'} | ${item.tipBol==='S'?'Scarico':'Carico'}</span></div>
+        <div class="detail-row"><label>Causale tra.:</label><span>${item.cauTra||'-'}</span></div>
+        <div class="detail-row"><label>Porto:</label>
+            <span>${item.tipPor==='F'?'Franco':'Assegnato'}</span></div>
+        <div class="detail-row"><label>Totale:</label>
             <strong><span id="order-total-bol">€ ${tot.toFixed(2)}</span></strong></div>
-        ${item.synced ? '<div class="sync-warning">⚠️ Già sincronizzato su Drive</div>' : ''}
+        ${item.synced?'<div class="sync-warning">⚠️ Già sincronizzato</div>':''}
         <div class="detail-row" style="align-items:center">
             <label>🖨️ Doppia copia:</label>
-            <input type="checkbox" id="chk-doppia-copia" style="width:24px;height:24px;cursor:pointer"
-                   title="Stampa due copie">
+            <input type="checkbox" id="chk-doppia-copia"
+                   style="width:22px;height:22px;cursor:pointer">
         </div>
-        <h4 style="margin:10px 0 4px">Righe:</h4>
-        <div class="righe-list">${righeHtml}</div>`;
+        <h4 style="margin:10px 0 4px">Righe bolla:</h4>
+        <div class="righe-list" id="bolla-detail-righe">${righeHtml}</div>
+        <!-- Aggiungi articolo inline -->
+        <div style="margin-top:10px;padding:8px;background:#f0f4ff;border-radius:8px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px">➕ Aggiungi articolo</div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="bolla-det-search-art"
+                   placeholder="Codice o descrizione..."
+                   style="flex:1;padding:6px;border:1px solid #ccc;border-radius:6px;font-size:12px"
+                   oninput="APP.searchArtBollaDetail(this.value)">
+          </div>
+          <div id="bolla-det-art-results" style="max-height:120px;overflow-y:auto;margin-top:4px"></div>
+        </div>
+        <!-- Aggiungi nota inline -->
+        <div style="margin-top:8px;padding:8px;background:#fffde7;border-radius:8px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px">📝 Aggiungi nota</div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="bolla-det-nota"
+                   placeholder="Testo nota (max 30 char per riga nel file DDT)..."
+                   style="flex:1;padding:6px;border:1px solid #ccc;border-radius:6px;font-size:12px">
+            <button onclick="APP.addNotaBollaDetail()"
+                    style="padding:6px 12px;background:#f57f17;color:white;border:none;border-radius:6px;cursor:pointer">
+              ➕
+            </button>
+          </div>
+        </div>`;
+};
 
-    // Pulsanti azioni
-    actEl.innerHTML = '';
-    const btn = (label, fn, cls) => {
-        const b = document.createElement('button');
-        b.className = cls || 'btn-secondary';
-        b.textContent = label;
-        b.onclick = fn;
-        actEl.appendChild(b);
-    };
-    btn('💾 Salva modifiche',   APP.saveItemEditBolla,   'btn-primary');
-    btn('🖨️ Stampa PDF',        APP.stampaBollaPDF);
-    btn('📤 Condividi PDF',     APP.condividiBollaPDF);
-    btn('📱 Stampa Mobile',     APP.printMobileBolla);
-    btn('🗑️ Elimina',          APP.deleteQueueItem,     'btn-danger');
-    btn('✕ Chiudi',             APP.closeItemDetailModal);
-    modal.classList.remove('hidden');
+// Elimina una riga dalla bolla in editing
+APP.deleteRigaBollaDetail = function(idx) {
+    const item = APP.selectedQueueItem;
+    if (!item) return;
+    item.righe.splice(idx, 1);
+    APP._renderBollaDetailContent(item, document.getElementById('item-detail-content'));
+    APP.updateBollaTotaleCli();
+};
+
+// Cerca articolo nell'editor inline
+APP.searchArtBollaDetail = async function(query) {
+    const el = document.getElementById('bolla-det-art-results');
+    if (!el || !query || query.length < 2) { if(el) el.innerHTML=''; return; }
+    try {
+        const risultati = await DB.searchArticoli(query);
+        el.innerHTML = risultati.slice(0,10).map(a =>
+            `<div style="padding:5px 8px;cursor:pointer;font-size:12px;border-bottom:1px solid #eee"
+                  onmousedown="APP.addArtBollaDetail('${a.codice}')">
+              <strong>${a.codice}</strong> — ${(a.des1||'').substring(0,30)}
+              <span style="color:#2e7d32;margin-left:8px">€ ${Number(a.prezzo||0).toFixed(2)}</span>
+            </div>`
+        ).join('') || '<p style="padding:6px;color:#999;font-size:12px">Nessun risultato</p>';
+    } catch(e) { el.innerHTML=''; }
+};
+
+// Aggiunge articolo alla bolla dall'editor inline
+APP.addArtBollaDetail = async function(codice) {
+    const item = APP.selectedQueueItem;
+    if (!item) return;
+    try {
+        const risultati = await DB.searchArticoli(codice);
+        const a = risultati.find(x => x.codice === codice);
+        if (!a) return;
+        item.righe.push({
+            codice: a.codice, des1: a.des1||'', des2: a.des2||'',
+            um: a.um||'Nr.', prezzo: a.prezzo||0,
+            codIvaVendita: a.codIvaVendita||'22',
+            gruppo: a.gruppo||'', qty: 1,
+        });
+        const inp = document.getElementById('bolla-det-search-art');
+        const res = document.getElementById('bolla-det-art-results');
+        if (inp) inp.value = '';
+        if (res) res.innerHTML = '';
+        APP._renderBollaDetailContent(item, document.getElementById('item-detail-content'));
+    } catch(e) { APP.showToast('Errore aggiunta articolo','error'); }
+};
+
+// Aggiunge nota alla bolla dall'editor inline
+APP.addNotaBollaDetail = function() {
+    const item  = APP.selectedQueueItem;
+    const inp   = document.getElementById('bolla-det-nota');
+    const testo = (inp?.value || '').trim();
+    if (!item || !testo) return;
+    item.righe.push({ tipo:'testo', testo, des1:testo, codice:'', qty:0, prezzo:0, um:'' });
+    if (inp) inp.value = '';
+    APP._renderBollaDetailContent(item, document.getElementById('item-detail-content'));
 };
 
 APP.updateRigaTotaleBolla = function(idx) {
@@ -341,14 +434,35 @@ APP.updateBollaTotaleCli = function() {
 };
 
 APP.saveItemEditBolla = async function() {
-    const item=APP.selectedQueueItem;
-    document.querySelectorAll('.riga-qty-edit').forEach(q=>{item.righe[parseInt(q.dataset.idx)].qty=parseInt(q.value)||1;});
-    document.querySelectorAll('.riga-prezzo-edit').forEach(p=>{item.righe[parseInt(p.dataset.idx)].prezzo=parseFloat(p.value)||0;});
-    let totNetto=0,totIva=0;
-    item.righe.forEach(r=>{const imp=r.qty*r.prezzo;totNetto+=imp;totIva+=imp*APP.getAliquotaIvaSync(r.codIvaVendita||'22')/100;});
-    item.totNetto=totNetto; item.totIva=totIva; item.totBolla=totNetto+totIva;
-    await DB.updateQueueItem('queueBolleClienti',item);
-    APP.showToast('Modifiche salvate','success');
+    const item = APP.selectedQueueItem;
+    // Aggiorna qty e prezzo delle righe articolo
+    document.querySelectorAll('.riga-qty-edit').forEach(q => {
+        const idx = parseInt(q.dataset.idx);
+        if (!isNaN(idx) && item.righe[idx]) item.righe[idx].qty = parseFloat(q.value)||0;
+    });
+    document.querySelectorAll('.riga-prezzo-edit').forEach(p => {
+        const idx = parseInt(p.dataset.idx);
+        if (!isNaN(idx) && item.righe[idx]) item.righe[idx].prezzo = parseFloat(p.value)||0;
+    });
+    // Aggiorna testo delle righe nota
+    document.querySelectorAll('.riga-testo-edit').forEach(t => {
+        const idx = parseInt(t.dataset.idx);
+        if (!isNaN(idx) && item.righe[idx]) {
+            item.righe[idx].testo = t.value;
+            item.righe[idx].des1  = t.value;
+        }
+    });
+    // Ricalcola totali
+    let totNetto = 0, totIva = 0;
+    item.righe.forEach(r => {
+        if (r.tipo === 'testo') return;
+        const imp = (r.qty||0) * (r.prezzo||0);
+        totNetto += imp;
+        totIva   += imp * APP.getAliquotaIvaSync(r.codIvaVendita||'22') / 100;
+    });
+    item.totNetto = totNetto; item.totIva = totIva; item.totBolla = totNetto + totIva;
+    await DB.updateQueueItem('queueBolleClienti', item);
+    APP.showToast('Modifiche salvate', 'success');
     APP.closeItemDetailModal();
     APP.openQueueModal('bolleClienti');
 };
@@ -420,8 +534,19 @@ APP.generateBollaPDF = async function(bolla, doppiaCopia=false) {
 
     doc.setFont('helvetica','normal');
     doc.setFontSize(7);
-    const lh  = 4;  // line height mm
+    const lh  = 4;
     let   y   = 10;
+
+    // ── Logo aziendale ────────────────────────────────────────────────────────
+    if (!APP.logoBase64 && APP.accessToken) {
+        await APP.loadLogo().catch(() => null);
+    }
+    if (APP.logoBase64) {
+        try {
+            doc.addImage(APP.logoBase64, 'JPEG', ML, y, 45, 18);
+            y += 21;
+        } catch(e) { console.warn('Logo PDF:', e); }
+    }
 
     // ── Helper ───────────────────────────────────────────────────────────────
     const str   = (v,max) => { const s=String(v||''); return max?s.substring(0,max):s; };
@@ -541,6 +666,29 @@ APP.generateBollaPDF = async function(bolla, doppiaCopia=false) {
     const ivaGruppi = {};
 
     bolla.righe.forEach(r => {
+        // ── Riga testo libero ────────────────────────────────────────────────
+        if (r.tipo === 'testo') {
+            if (y > 220) { doc.addPage(); y = 10; }
+            const chunks = APP._splitTesto30(r.testo || r.des1 || '');
+            chunks.forEach(chunk => {
+                const rowVals = [
+                    {v: chunk, w: cDesc, a:'left'},
+                    {v:'', w:22, a:'center'},{v:'', w:8, a:'center'},
+                    {v:'', w:26, a:'right'},{v:'', w:20, a:'right'},
+                    {v:'', w:14, a:'right'},{v:'', w:12, a:'center'},
+                ];
+                let cx2 = ML;
+                doc.setFont('helvetica','italic');
+                rowVals.forEach(col => {
+                    doc.rect(cx2, y, col.w, rigaH);
+                    if (col.v) txt(col.v, cx2+1, y+rigaH/2, col.a);
+                    cx2 += col.w;
+                });
+                doc.setFont('helvetica','normal');
+                y += rigaH;
+            });
+            return;
+        }
         const qta      = Number(r.qty || r.qtaPez || 0);
         const preLor   = Number(r.prezzo || 0);
         const sco      = Number(r.sconto || bolla.scontoGlobale || 0);

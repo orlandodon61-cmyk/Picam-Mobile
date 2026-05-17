@@ -120,7 +120,7 @@ APP.syncBolleClienti = async function() {
                         codDep,'','',n(datBol),
                         '','','','',
                         '','N',
-                        '','',n(datBolSlash),'',''
+                        '','',n(datSlash),'',''
                     ].join('|')+'|'+CRLF;
                 });
                 return;
