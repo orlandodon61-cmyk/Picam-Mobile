@@ -23,7 +23,16 @@ APP.defaultConfig = {
     // 'download' = cartella Downloads (default Android)
     // 'share'    = Web Share API (utente sceglie la cartella su Android)
     // 'drive'    = carica su Google Drive
-    saveMethod: 'download'
+    saveMethod: 'download',
+    // Codice agente default
+    codAgente: '',
+    // Registro bolle DDT
+    registroBolle: '01',
+    // Tipi documento DDT — estendibili dall'utente
+    tipiDocBolla: [
+        { cod: 'BOL', des: 'Documento di Trasporto' },
+        { cod: 'PRE', des: 'Prestazioni' },
+    ],
 };
 
 APP.loadConfig = function() {

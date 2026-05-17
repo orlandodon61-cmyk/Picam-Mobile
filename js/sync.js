@@ -86,7 +86,7 @@ APP.syncBolleClienti = async function() {
         const datBol = b.data ? APP.fmtDDMMYYYY(new Date(b.data)) : '';
         tes += [n(b.cliente.codice),q(b.cauMag||'ven'),q(b.codDep||'01'),
                 n(b.pagamento&&b.pagamento.codice||''),n(datBol),
-                '','','',q('BOL'),n(b.segFat||'S'),n(b.tipBol||'S'),
+                '','','',q(b.tipDoc||'BOL'),n(b.segFat||'S'),n(b.tipBol||'S'),
                 n(Math.round(b.totNetto||0)),n(Math.round(b.totIva||0)),
                 n(Math.round(b.totBolla||0)),n(Math.round(b.totBolla||0)),
                 q(b.registro||'01'),n(b.numero||1),
@@ -106,6 +106,25 @@ APP.syncBolleClienti = async function() {
         let np = 0;
         b.righe.forEach(r => {
             np++;
+            // Riga testo libero: split in chunk da 30 char
+            if (r.tipo === 'testo') {
+                const chunks = APP._splitTesto30(r.testo||r.des1||'');
+                chunks.forEach(chunk => {
+                    det += [
+                        q(''),codCli,q(chunk),'',q(''),
+                        '','','',
+                        nomBol,'','',
+                        '','',
+                        '','','',
+                        'T',n(np),n(np),'','','','','',
+                        codDep,'','',n(datBol),
+                        '','','','',
+                        '','N',
+                        '','',n(datBolSlash),'',''
+                    ].join('|')+'|'+CRLF;
+                });
+                return;
+            }
             const impLor = r.qty*r.prezzo;
             const impNet = impLor*(1-(r.sconto||0)/100);
             const ali    = r.aliIva||APP.getAliquotaIvaSync(r.codIvaVendita||'22');

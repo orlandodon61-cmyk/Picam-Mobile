@@ -1036,6 +1036,12 @@ const APP = {
     <!-- Articoli -->
     <div class="ordine-section">
       <h3>📦 Articoli</h3>
+      <div style="margin-bottom:8px">
+        <button class="btn-secondary" style="width:100%;font-size:13px"
+                onclick="APP.apriModalTestoBolla()">
+          📝 Aggiungi riga di testo / nota
+        </button>
+      </div>
       <div class="scan-mode-toggle">
         <label class="toggle-label">
           <input type="checkbox" id="fast-scan-bol-cli" onchange="APP.toggleFastScan('bolCli')">
@@ -1103,6 +1109,14 @@ const APP = {
         <input type="text" id="bol-opt-agente" placeholder="es. 001" maxlength="6"
                style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc">
       </div>
+      <div class="printer-field">
+        <label>Tipo Documento</label>
+        <select id="bol-opt-tip-doc"
+                style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc">
+          <option value="BOL">BOL — Documento di Trasporto</option>
+          <option value="PRE">PRE — Prestazioni</option>
+        </select>
+      </div>
       <div class="settings-grid-2">
         <div class="printer-field">
           <label>Segue fattura</label>
@@ -1168,5 +1182,30 @@ const APP = {
   </div>
 </div>
 
+
+<!-- ==================== MODAL TESTO BOLLA ==================== -->
+<div class="modal-overlay hidden" id="modal-testo-bolla">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>📝 Aggiungi riga di testo</h3>
+      <button class="btn-close" onclick="APP.chiudiModalTestoBolla()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="printer-field">
+        <label>Testo (verrà suddiviso ogni 30 caratteri)</label>
+        <textarea id="testo-bolla-input" rows="4"
+                  style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc;font-size:14px;resize:vertical"
+                  placeholder="es. Note per il destinatario, condizioni, ecc."></textarea>
+        <small style="color:#888;font-size:11px">
+          Ogni 30 caratteri verrà creata una riga separata nel file DDT
+        </small>
+      </div>
+      <div class="settings-actions">
+        <button class="btn-primary" onclick="APP.confermaTestoBolla()">✓ Aggiungi</button>
+        <button class="btn-secondary" onclick="APP.chiudiModalTestoBolla()">Annulla</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

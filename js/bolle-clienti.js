@@ -11,6 +11,7 @@ APP.currentBollaClienti = {
     aspEst:'a vista', cauTra:'Vendita', tipPor:'A', tipSpe:'D',
     datIniTra:'', oraIniTra:'',
     // Nuovi campi
+    tipDoc:'BOL',            // Tipo documento (BOL, PRE, ...)
     codAgente:'', scontoGlobale:0, destDiverso:null,
 };
 
@@ -27,6 +28,7 @@ APP.openBolleClienti = async function() {
     APP.currentBollaClienti.righe   = [];
     APP.currentBollaClienti.pagamento = {codice:'',descrizione:''};
     APP.currentBollaClienti.scontoGlobale = 0;
+    APP.currentBollaClienti.tipDoc = 'BOL';
     APP.currentBollaClienti.destDiverso   = null;
     APP.currentBollaClienti.codAgente     = APP.config.codAgente || '';
     // Popola campo agente nell'UI
@@ -114,6 +116,17 @@ APP.renderRigheBollaClienti = function() {
     }
     let html='', totQta=0, totImp=0, totIva=0;
     righe.forEach((r,i)=>{
+        if (r.tipo === 'testo') {
+            // Riga testo libero — stesso stile delle descrizioni, senza qty/prezzo
+            html+=`<div class="riga-item riga-item-testo">
+                <div class="riga-info">
+                    <div class="riga-code" style="color:#888;font-size:10px">📝 NOTA</div>
+                    <div class="riga-desc">${r.testo||r.des1||''}</div>
+                </div>
+                <button class="btn-remove-riga" onclick="APP.removeRigaBollaCliente(${i})">🗑️</button>
+            </div>`;
+            return;
+        }
         totQta+=r.qty;
         const imp=r.qty*r.prezzo;
         const ali=APP.getAliquotaIvaSync(r.codIvaVendita||'22');
@@ -148,6 +161,13 @@ APP.updateBtnConfermaBolCli = function() {
 APP.apriOpzioniBollaDDT = function() {
     const b=APP.currentBollaClienti;
     const v=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val;};
+    // Popola select tipo documento dai tipi configurati
+    const selTip = document.getElementById('bol-opt-tip-doc');
+    if (selTip) {
+        const tipi = APP.config.tipiDocBolla || [{cod:'BOL',des:'Documento di Trasporto'},{cod:'PRE',des:'Prestazioni'}];
+        selTip.innerHTML = tipi.map(t => `<option value="${t.cod}">${t.cod} — ${t.des}</option>`).join('');
+    }
+    v('bol-opt-tip-doc', b.tipDoc || 'BOL');
     v('bol-opt-agente',  b.codAgente || APP.config.codAgente || '');
     v('bol-opt-seg-fat',b.segFat); v('bol-opt-tip-bol',b.tipBol);
     v('bol-opt-cau-mag',b.cauMag); v('bol-opt-cod-dep',b.codDep);
@@ -160,7 +180,8 @@ APP.apriOpzioniBollaDDT = function() {
 APP.salvaOpzioniBollaDDT = function() {
     const g=id=>(document.getElementById(id)?.value||'').trim();
     const b=APP.currentBollaClienti;
-    b.codAgente=g('bol-opt-agente');
+    b.tipDoc   = g('bol-opt-tip-doc') || 'BOL';
+    b.codAgente= g('bol-opt-agente');
     // Aggiorna anche il campo agente visibile nel form principale
     const aEl=document.getElementById('bol-cli-agente'); if(aEl) aEl.value=b.codAgente;
     b.segFat=g('bol-opt-seg-fat')||'S'; b.tipBol=g('bol-opt-tip-bol')||'S';
@@ -202,6 +223,7 @@ APP.confermaBollaCliente = async function() {
         data:new Date().toISOString(),
         cliente:{...bolla.cliente}, righe:[...bolla.righe],
         pagamento:{codice:pagSel?.value||'', descrizione:pagSel?.selectedOptions[0]?.dataset?.descrizione||''},
+        tipDoc:bolla.tipDoc||'BOL',
         segFat:bolla.segFat, tipBol:bolla.tipBol,
         cauMag:bolla.cauMag, codDep:bolla.codDep,
         aspEst:bolla.aspEst, cauTra:bolla.cauTra,
@@ -829,6 +851,14 @@ APP.buildBollaEscPos = function(bolla, config, isCopia=false) {
     // ── Righe articoli ────────────────────────────────────────────────────────
     let totNetto=0, totIva=0;
     bolla.righe.forEach((r,i) => {
+        // Riga testo libero
+        if (r.tipo === 'testo') {
+            const chunks = APP._splitTesto(r.testo||r.des1||'', w-2);
+            chunks.forEach(chunk => cmds.push({type:'text', v:'  '+chunk}));
+            if(i < bolla.righe.length-1)
+                cmds.push({type:'text',v:' '.repeat(cD)+SEP_T.substring(0,w-cD)});
+            return;
+        }
         const qta    = Number(r.qty||r.qtaPez||0);
         const pre    = Number(r.prezzo||0);
         const sco    = Number(r.sconto||bolla.scontoGlobale||0);
@@ -857,7 +887,8 @@ APP.buildBollaEscPos = function(bolla, config, isCopia=false) {
     cmds.push({type:'text',v:P.sxDx('IVA:',        'Eur '+P.money(totIva,9),w)});
     cmds.push({type:'text',v:SEP_T});
     cmds.push({type:'bold',v:true});
-    cmds.push({type:'text',v:P.sxDx('TOTALE BOLLA:','Eur '+P.money(totNetto+totIva,9),w)});
+    const _lblTotEsc = bolla.tipDoc==='BOL' ? 'TOTALE DDT:' : 'TOTALE DOC.:';
+    cmds.push({type:'text',v:P.sxDx(_lblTotEsc,'Eur '+P.money(totNetto+totIva,9),w)});
     cmds.push({type:'bold',v:false});
     cmds.push({type:'align',v:'left'});
     cmds.push({type:'text',v:SEP_B});
@@ -882,4 +913,67 @@ APP.buildBollaEscPos = function(bolla, config, isCopia=false) {
     cmds.push({type:'cut'});
 
     return APP.buildEscPos(cmds);
+};
+
+// ── Riga di testo libero ──────────────────────────────────────────────────────
+APP.apriModalTestoBolla = function() {
+    const modal = document.getElementById('modal-testo-bolla');
+    if (!modal) return;
+    document.getElementById('testo-bolla-input').value = '';
+    modal.classList.remove('hidden');
+    setTimeout(() => document.getElementById('testo-bolla-input').focus(), 150);
+};
+
+APP.chiudiModalTestoBolla = function() {
+    document.getElementById('modal-testo-bolla').classList.add('hidden');
+};
+
+APP.confermaTestoBolla = function() {
+    const input = document.getElementById('testo-bolla-input');
+    const testo = (input?.value || '').trim();
+    if (!testo) { APP.chiudiModalTestoBolla(); return; }
+    // Aggiunge una riga di tipo 'testo' (nessun articolo, nessuna quantità)
+    APP.currentBollaClienti.righe.push({
+        tipo:   'testo',
+        testo:  testo,
+        codice: '',
+        des1:   testo,
+        qty:    0,
+        prezzo: 0,
+        um:     '',
+        codIvaVendita: '',
+        gruppo: '',
+    });
+    APP.chiudiModalTestoBolla();
+    APP.renderRigheBollaClienti();
+    APP.updateBtnConfermaBolCli();
+};
+
+// ── Helper: divide testo in chunk di N caratteri ─────────────────────────────
+APP._splitTesto = function(testo, maxLen) {
+    if (!testo) return [''];
+    const chunks = [];
+    let s = String(testo);
+    while (s.length > 0) {
+        // Cerca spazio per non spezzare parole (se possibile)
+        let cut = maxLen;
+        if (s.length > maxLen) {
+            const sp = s.lastIndexOf(' ', maxLen);
+            if (sp > maxLen * 0.6) cut = sp + 1; // taglia allo spazio
+        }
+        chunks.push(s.substring(0, cut).trimEnd());
+        s = s.substring(cut).trimStart();
+    }
+    return chunks;
+};
+
+// ── Helper: divide testo in chunk esatti di 30 char (per ddt-dettagli) ───────
+APP._splitTesto30 = function(testo) {
+    const chunks = [];
+    let s = String(testo || '');
+    while (s.length > 0) {
+        chunks.push(s.substring(0, 30));
+        s = s.substring(30);
+    }
+    return chunks.length ? chunks : [''];
 };
