@@ -537,15 +537,25 @@ APP.generateBollaPDF = async function(bolla, doppiaCopia=false) {
     const lh  = 4;
     let   y   = 10;
 
-    // ── Logo aziendale ────────────────────────────────────────────────────────
+    // ── Logo aziendale (stesso metodo di pdf.js) ─────────────────────────────
     if (!APP.logoBase64 && APP.accessToken) {
-        await APP.loadLogo().catch(() => null);
+        APP.logoBase64 = await APP.loadLogo().catch(() => null);
     }
+    let logoEndY = y;
     if (APP.logoBase64) {
         try {
-            doc.addImage(APP.logoBase64, 'JPEG', ML, y, 45, 18);
-            y += 21;
-        } catch(e) { console.warn('Logo PDF:', e); }
+            const img = new Image();
+            await new Promise(resolve => { img.onload = resolve; img.src = APP.logoBase64; });
+            const maxW = 55, maxH = 22;
+            const ratio = img.naturalHeight / img.naturalWidth;
+            let lw = maxW, lh = lw * ratio;
+            if (lh > maxH) { lh = maxH; lw = lh / ratio; }
+            doc.addImage(APP.logoBase64, 'JPEG', ML, y, lw, lh);
+            logoEndY = y + lh + 3;
+            y = logoEndY;
+        } catch(e) {
+            console.warn('Logo bolla PDF non caricato:', e);
+        }
     }
 
     // ── Helper ───────────────────────────────────────────────────────────────
