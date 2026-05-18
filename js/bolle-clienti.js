@@ -29,6 +29,10 @@ APP.openBolleClienti = async function() {
     APP.currentBollaClienti.pagamento = {codice:'',descrizione:''};
     APP.currentBollaClienti.scontoGlobale = 0;
     APP.currentBollaClienti.tipDoc = 'BOL';
+    // Recupera numero progressivo da localStorage
+    const _lastNum = parseInt(localStorage.getItem('picam_bolle_last_num') || '0');
+    APP.currentBollaClienti.numero = _lastNum + 1;
+    document.getElementById('bol-cli-numero').value = APP.currentBollaClienti.numero;
     APP.currentBollaClienti.destDiverso   = null;
     APP.currentBollaClienti.codAgente     = APP.config.codAgente || '';
     // Popola campo agente nell'UI

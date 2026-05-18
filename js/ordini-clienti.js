@@ -217,54 +217,131 @@ APP.shareOrdineCliente = async function() {
 // ---------- MODAL DETTAGLIO ORDINE CLIENTE (con prezzo editabile) ----------
 
 APP.openItemDetailClienti = function() {
-    const item = APP.selectedQueueItem;
-    const modal = document.getElementById('modal-item-detail');
+    const item    = APP.selectedQueueItem;
+    const modal   = document.getElementById('modal-item-detail');
     const titleEl = document.getElementById('item-detail-title');
-    const contentEl = document.getElementById('item-detail-content');
-    const actionsEl = document.getElementById('item-detail-actions');
+    const contEl  = document.getElementById('item-detail-content');
+    const actEl   = document.getElementById('item-detail-actions');
+    if (!modal || !item) return;
 
-    let totale = 0;
-    let righeHtml = item.righe.map((riga, idx) => {
-        const tot = riga.qty * riga.prezzo;
-        totale += tot;
-        return `
-            <div class="riga-detail riga-detail-cliente">
-                <div class="riga-info">
-                    <span class="riga-cod">${riga.codice}</span>
-                    <span class="riga-desc">${riga.des1.substring(0, 28)}</span>
-                </div>
-                <div class="riga-inputs">
-                    <label>Qtà:</label>
-                    <input type="number" class="riga-qty-edit" data-idx="${idx}" value="${riga.qty}" min="1" style="width:60px"
-                           onchange="APP.updateOrderTotalCli()">
-                    <label>Prezzo:</label>
-                    <input type="number" class="riga-prezzo-edit" data-idx="${idx}" value="${riga.prezzo.toFixed(2)}"
-                           step="0.01" min="0" style="width:80px; background:#e8f5e9"
-                           onchange="APP.updateRigaTotaleCli(${idx})">
-                    <span class="riga-tot" id="riga-tot-cli-${idx}">€ ${tot.toFixed(2)}</span>
-                </div>
-            </div>`;
+    titleEl.textContent = `🛒 Ordine ${item.registro||'01'}/${item.numero}`;
+    APP._renderOrdineCliDetailContent(item, contEl);
+
+    actEl.innerHTML = '';
+    const btn = (lbl, fn, cls) => {
+        const b = document.createElement('button');
+        b.className = cls || 'btn-secondary';
+        b.textContent = lbl; b.onclick = fn;
+        actEl.appendChild(b);
+    };
+    btn('💾 Salva',              APP.saveItemEditCli,          'btn-primary');
+    btn('🖨️ PDF con prezzi',     () => APP.printOrdineCliente(true));
+    btn('🖨️ PDF senza prezzi',   () => APP.printOrdineCliente(false));
+    btn('📤 Condividi',          APP.shareOrdineCliente);
+    btn('📱 Stampa Mobile',      APP.printMobileOrdine);
+    btn('🗑️ Elimina ordine',    APP.deleteQueueItem,          'btn-danger');
+    btn('✕ Chiudi',              APP.closeItemDetailModal);
+    modal.classList.remove('hidden');
+};
+
+APP._renderOrdineCliDetailContent = function(item, contEl) {
+    let tot = 0;
+    const righeHtml = (item.righe || []).map((r, i) => {
+        const t = (Number(r.qty)||0) * (Number(r.prezzo)||0); tot += t;
+        return `<div class="riga-detail riga-detail-cliente">
+          <div class="riga-info" style="flex:1">
+            <div style="display:flex;gap:6px;align-items:baseline">
+              <span class="riga-cod">${r.codice}</span>
+              <span class="riga-desc" style="font-size:11px">${(r.des1||'').substring(0,25)}</span>
+            </div>
+            <div class="riga-inputs" style="margin-top:4px">
+              <label style="font-size:10px">Qtà:</label>
+              <input type="number" class="riga-qty-edit" data-idx="${i}"
+                     value="${r.qty}" min="1" step="1" style="width:55px"
+                     onchange="APP.updateRigaTotaleCli(${i})">
+              <label style="font-size:10px">Prezzo:</label>
+              <input type="number" class="riga-prezzo-edit" data-idx="${i}"
+                     value="${Number(r.prezzo||0).toFixed(4)}" step="0.0001" min="0"
+                     style="width:85px;background:#e8f5e9"
+                     onchange="APP.updateRigaTotaleCli(${i})">
+              <span class="riga-tot" id="riga-tot-cli-${i}">€ ${t.toFixed(2)}</span>
+            </div>
+          </div>
+          <button class="btn-remove-riga" onclick="APP.deleteRigaOrdineCliDetail(${i})"
+                  style="color:#c62828">🗑️</button>
+        </div>`;
     }).join('');
 
-    titleEl.textContent = `🛒 Ordine ${item.registro}/${item.numero}`;
-    contentEl.innerHTML = `
-        <div class="detail-row"><label>Cliente:</label><span>${item.cliente.ragSoc1}</span></div>
-        <div class="detail-row"><label>Data:</label><span>${APP.formatDate(new Date(item.data))}</span></div>
-        <div class="detail-row"><label>Totale:</label><span id="order-total-cli">€ ${totale.toFixed(2)}</span></div>
-        ${item.synced ? '<div class="sync-warning">⚠️ Già sincronizzato su Google Drive</div>' : ''}
-        <h4>Righe ordine:</h4>
-        <div class="righe-list">${righeHtml}</div>`;
+    contEl.innerHTML = `
+        <div class="detail-row"><label>Cliente:</label>
+            <span>${item.cliente?.ragSoc1||''}</span></div>
+        <div class="detail-row"><label>Data:</label>
+            <span>${item.data ? APP.formatDate(new Date(item.data)) : ''}</span></div>
+        <div class="detail-row"><label>Pagamento:</label>
+            <span>${item.pagamento?.descrizione||item.pagamento?.codice||'-'}</span></div>
+        <div class="detail-row"><label>Totale:</label>
+            <strong><span id="order-total-cli">€ ${tot.toFixed(2)}</span></strong></div>
+        ${item.synced ? '<div class="sync-warning">⚠️ Già sincronizzato su Drive</div>' : ''}
+        <h4 style="margin:10px 0 4px">Righe ordine:</h4>
+        <div class="righe-list" id="ordcli-detail-righe">${righeHtml}</div>
+        <!-- Aggiungi articolo inline -->
+        <div style="margin-top:10px;padding:8px;background:#f0f4ff;border-radius:8px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px">➕ Aggiungi articolo</div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="ordcli-det-search-art"
+                   placeholder="Codice o descrizione..."
+                   style="flex:1;padding:6px;border:1px solid #ccc;border-radius:6px;font-size:12px"
+                   oninput="APP.searchArtOrdCliDetail(this.value)">
+          </div>
+          <div id="ordcli-det-art-results"
+               style="max-height:120px;overflow-y:auto;margin-top:4px"></div>
+        </div>`;
+};
 
-    actionsEl.innerHTML = `
-        <button class="btn-primary" onclick="APP.saveItemEditCli()">💾 Salva</button>
-        <button class="btn-secondary" onclick="APP.printOrdineCliente(true)">🖨️ Stampa con prezzi</button>
-        <button class="btn-secondary" onclick="APP.printOrdineCliente(false)">🖨️ Stampa senza prezzi</button>
-        <button class="btn-secondary" onclick="APP.shareOrdineCliente()">📤 Condividi</button>
-        <button class="btn-secondary" onclick="APP.printMobileOrdine()">📱 Stampa Mobile</button>
-        <button class="btn-danger" onclick="APP.deleteQueueItem()">🗑️ Elimina</button>
-        <button class="btn-secondary" onclick="APP.closeItemDetailModal()">Chiudi</button>`;
+// ── Elimina riga ordine in editing ────────────────────────────────────────────
+APP.deleteRigaOrdineCliDetail = function(idx) {
+    const item = APP.selectedQueueItem;
+    if (!item) return;
+    item.righe.splice(idx, 1);
+    APP._renderOrdineCliDetailContent(item, document.getElementById('item-detail-content'));
+};
 
-    modal.classList.remove('hidden');
+// ── Cerca articolo nell'editor ordine inline ──────────────────────────────────
+APP.searchArtOrdCliDetail = async function(query) {
+    const el = document.getElementById('ordcli-det-art-results');
+    if (!el || !query || query.length < 2) { if(el) el.innerHTML=''; return; }
+    try {
+        const risultati = await DB.searchArticoli(query);
+        el.innerHTML = risultati.slice(0,10).map(a =>
+            `<div style="padding:5px 8px;cursor:pointer;font-size:12px;border-bottom:1px solid #eee"
+                  onmousedown="APP.addArtOrdCliDetail('${a.codice}')">
+              <strong>${a.codice}</strong> — ${(a.des1||'').substring(0,30)}
+              <span style="color:#2e7d32;margin-left:8px">€ ${Number(a.prezzo||0).toFixed(2)}</span>
+            </div>`
+        ).join('') || '<p style="padding:6px;color:#999;font-size:12px">Nessun risultato</p>';
+    } catch(e) { el.innerHTML=''; }
+};
+
+// ── Aggiunge articolo all'ordine dall'editor inline ───────────────────────────
+APP.addArtOrdCliDetail = async function(codice) {
+    const item = APP.selectedQueueItem;
+    if (!item) return;
+    try {
+        const risultati = await DB.searchArticoli(codice);
+        const a = risultati.find(x => x.codice === codice);
+        if (!a) return;
+        item.righe.push({
+            codice: a.codice, des1: a.des1||'', des2: a.des2||'',
+            um: a.um||'Nr.', prezzo: a.prezzo||0,
+            codIvaVendita: a.codIvaVendita||'22',
+            gruppo: a.gruppo||'', qty: 1,
+        });
+        const inp = document.getElementById('ordcli-det-search-art');
+        const res = document.getElementById('ordcli-det-art-results');
+        if (inp) inp.value = '';
+        if (res) res.innerHTML = '';
+        APP._renderOrdineCliDetailContent(item, document.getElementById('item-detail-content'));
+    } catch(e) { APP.showToast('Errore aggiunta articolo','error'); }
 };
 
 APP.updateRigaTotaleCli = function(idx) {
@@ -291,21 +368,21 @@ APP.updateOrderTotalCli = function() {
 
 APP.saveItemEditCli = async function() {
     const item = APP.selectedQueueItem;
+    // Aggiorna qty e prezzo da tutti i campi visibili
     document.querySelectorAll('.riga-qty-edit').forEach(input => {
         const idx = parseInt(input.dataset.idx);
-        item.righe[idx].qty = parseInt(input.value) || 1;
+        if (!isNaN(idx) && item.righe[idx]) item.righe[idx].qty = parseFloat(input.value) || 0;
     });
     document.querySelectorAll('.riga-prezzo-edit').forEach(input => {
         const idx = parseInt(input.dataset.idx);
-        item.righe[idx].prezzo = parseFloat(input.value) || 0;
+        if (!isNaN(idx) && item.righe[idx]) item.righe[idx].prezzo = parseFloat(input.value) || 0;
     });
     // Ricalcola totali
     let totNetto = 0, totIva = 0;
-    item.righe.forEach(riga => {
-        const imp = riga.qty * riga.prezzo;
-        const aliquota = APP.getAliquotaIvaSync(riga.codIvaVendita || '22');
+    item.righe.forEach(r => {
+        const imp = (r.qty||0) * (r.prezzo||0);
         totNetto += imp;
-        totIva   += imp * aliquota / 100;
+        totIva   += imp * APP.getAliquotaIvaSync(r.codIvaVendita || '22') / 100;
     });
     item.totNetto  = totNetto;
     item.totIva    = totIva;

@@ -126,6 +126,17 @@ APP.saveSettings = function() {
     // Azzera cache logo se cambia cartella Drive
     APP.logoBase64 = null;
     APP.logoBitmapCache = null;
+    // Salva email di visualizzazione (fallback quando OAuth non disponibile)
+    const emailInput = v('settings-email');
+    if (emailInput) {
+        APP.userEmail = emailInput;
+        localStorage.setItem('picam_user_email', emailInput);
+        const ls = document.getElementById('login-status');
+        if (ls && ls.textContent.includes('non disponibile')) {
+            ls.textContent = `Connesso come ${emailInput}`;
+            ls.className = 'status-message success';
+        }
+    }
     APP.persistConfig();
     APP.applyRegistroToUI();
     APP.closeSettings();

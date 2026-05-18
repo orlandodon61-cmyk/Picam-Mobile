@@ -370,9 +370,10 @@ function searchClienti(query, limit = 50) {
             if (cursor && results.length < limit) {
                 const cli = cursor.value;
                 
-                if (cli.codice.toLowerCase().includes(queryLower) ||
-                    cli.ragSoc1.toLowerCase().includes(queryLower) ||
-                    cli.partitaIva.includes(query)) {
+                if ((cli.codice||'').toLowerCase().includes(queryLower) ||
+                    (cli.ragSoc1||'').toLowerCase().includes(queryLower) ||
+                    (cli.localita||'').toLowerCase().includes(queryLower) ||
+                    (cli.partitaIva||'').includes(query)) {
                     results.push(cli);
                 }
                 
@@ -438,7 +439,7 @@ function searchFornitori(query, limit = 50) {
                 const forn = cursor.value;
                 
                 if (forn.codice.toLowerCase().includes(queryLower) ||
-                    forn.ragSoc1.toLowerCase().includes(queryLower) ||
+                    (forn.ragSoc1||'').toLowerCase().includes(queryLower) ||
                     forn.partitaIva.includes(query)) {
                     results.push(forn);
                 }

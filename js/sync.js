@@ -132,7 +132,7 @@ APP.syncBolleClienti = async function() {
                 q(r.codice),codCli,q(r.des1||''),q(r.des2||''),q(r.um||'Nr.'),
                 n(r.qty),n(Math.round(impNet)),'',
                 nomBol,'',q(r.codIvaVendita||'22'),n(r.gruppo||''),numBol,
-                '','','','A',n(np),n(np),'','','80',n(b.codDep||'2'),
+                '','','','A',n(np),n(np),'','','80','2',
                 '',codDep,'','',n(datBol),
                 n(Math.round(impLor)),fmt2(impNet),n(Math.round(impNet)),'',
                 n(ali),'N','',fmt2(r.qty),n(datSlash),'',''
