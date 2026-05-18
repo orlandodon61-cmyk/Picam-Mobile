@@ -370,13 +370,16 @@ function searchClienti(query, limit = 50) {
             if (cursor && results.length < limit) {
                 const cli = cursor.value;
                 
-                if ((cli.codice||'').toLowerCase().includes(queryLower) ||
-                    (cli.ragSoc1||'').toLowerCase().includes(queryLower) ||
-                    (cli.localita||'').toLowerCase().includes(queryLower) ||
-                    (cli.partitaIva||'').includes(query)) {
-                    results.push(cli);
-                }
-                
+                try {
+                    const _cod  = String(cli.codice   || '').toLowerCase();
+                    const _rag  = String(cli.ragSoc1  || '').toLowerCase();
+                    const _loc  = String(cli.localita || '').toLowerCase();
+                    const _piv  = String(cli.partitaIva || '');
+                    if (_cod.includes(queryLower) || _rag.includes(queryLower) ||
+                        _loc.includes(queryLower) || _piv.includes(query)) {
+                        results.push(cli);
+                    }
+                } catch(e) { /* record malformato, continua */ }
                 cursor.continue();
             } else {
                 resolve(results);
