@@ -858,6 +858,21 @@ APP.generateBollaPDF = async function(bolla, doppiaCopia=false) {
     bold(true);
     tV.forEach((v,i)=>{ cell(v,cx,y,tW[i],ivaH+1,'left'); cx+=tW[i]; });
     bold(false);
+    y += ivaH + 6;
+
+    // ── Sezione firma "Per accettazione" ─────────────────────────────────────
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    txt('Per accettazione:', ML, y);
+    y += 5;
+    // Riga firma — tutta la larghezza meno 60mm per eventuale timbro
+    line(ML, y, ML + W * 0.6, y);
+    doc.setFontSize(6.5);
+    doc.setTextColor(120, 120, 120);
+    txt('(timbro e firma leggibile)', ML, y + 3.5);
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(7);
+    y += 8;
 
     // Doppia copia: seconda pagina con watermark COPIA
     if (doppiaCopia) {
@@ -1068,9 +1083,14 @@ APP.buildBollaEscPos = function(bolla, config, isCopia=false) {
     cmds.push({type:'text',v:SEP_B});
 
     // ── Firma ─────────────────────────────────────────────────────────────────
-    cmds.push({type:'text',v:'Firma destinatario:'});
     cmds.push({type:'text',v:''});
-    cmds.push({type:'text',v:'_'.repeat(w)});
+    cmds.push({type:'text',v:'Per accettazione:'});
+    cmds.push({type:'text',v:''});
+    cmds.push({type:'text',v:'_'.repeat(Math.floor(w*0.65))});
+    cmds.push({type:'text',v:''});
+    cmds.push({type:'align',v:'center'});
+    cmds.push({type:'text',v:'(timbro e firma leggibile)'});
+    cmds.push({type:'align',v:'left'});
     cmds.push({type:'feed',lines:4});
     cmds.push({type:'cut'});
 
