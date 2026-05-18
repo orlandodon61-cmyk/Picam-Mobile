@@ -352,41 +352,29 @@ async function saveClienti(clienti, onProgress) {
 }
 
 function searchClienti(query, limit = 50) {
-    return new Promise((resolve, reject) => {
-        if (!query || query.length < 2) {
-            resolve([]);
-            return;
-        }
-        
+    return new Promise((resolve) => {
+        if (!query || query.length < 2) { resolve([]); return; }
         const queryLower = query.toLowerCase();
-        const results = [];
-        
+        // Usa getAll() invece del cursore — più robusto con dati malformati
         const store = getStore('clienti', 'readonly');
-        const request = store.openCursor();
-        
-        request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            
-            if (cursor && results.length < limit) {
-                const cli = cursor.value;
-                
+        const request = store.getAll();
+        request.onsuccess = () => {
+            const results = [];
+            for (const cli of (request.result || [])) {
+                if (results.length >= limit) break;
                 try {
-                    const _cod  = String(cli.codice   || '').toLowerCase();
-                    const _rag  = String(cli.ragSoc1  || '').toLowerCase();
-                    const _loc  = String(cli.localita || '').toLowerCase();
-                    const _piv  = String(cli.partitaIva || '');
-                    if (_cod.includes(queryLower) || _rag.includes(queryLower) ||
-                        _loc.includes(queryLower) || _piv.includes(query)) {
+                    if (String(cli.codice    ||'').toLowerCase().includes(queryLower) ||
+                        String(cli.ragSoc1   ||'').toLowerCase().includes(queryLower) ||
+                        String(cli.ragSoc2   ||'').toLowerCase().includes(queryLower) ||
+                        String(cli.localita  ||'').toLowerCase().includes(queryLower) ||
+                        String(cli.partitaIva||'').includes(query)) {
                         results.push(cli);
                     }
-                } catch(e) { /* record malformato, continua */ }
-                cursor.continue();
-            } else {
-                resolve(results);
+                } catch(e) { /* ignora record malformato */ }
             }
+            resolve(results);
         };
-        
-        request.onerror = () => reject(request.error);
+        request.onerror = () => resolve([]); // mai reject, al massimo lista vuota
     });
 }
 
